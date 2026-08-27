@@ -125,6 +125,11 @@ class DistractorSimilarityDetector(BaseDetector):
         if dataset is None or not hasattr(dataset, "data"):
             raise DetectorInputError("Dataset not available in context")
 
+        if dataset.TYPE != "MCQ":
+            raise DetectorInputError(
+                "DistractorSimilarityDetector only supports MCQ datasets."
+            )
+
         df = dataset.data
         options_rows = self._find_options_columns(df)
         if not options_rows:
@@ -252,7 +257,7 @@ class DistractorSimilarityDetector(BaseDetector):
             "thresholds": {"warning": thresh_warn, "critical": thresh_crit},
         }
         # normalized severity score: average maximal pair similarity (0..1, higher == worse)
-        dataset_report["score"] = float(avg_max)
+        dataset_report["score"] = 1.0 - float(avg_max)
 
         # build summary and findings for audit
         findings = []

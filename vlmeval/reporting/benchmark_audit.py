@@ -1,7 +1,7 @@
 from pathlib import Path
 import json
 from collections import defaultdict, Counter
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 
 class BenchmarkAuditReportGenerator:
@@ -18,6 +18,23 @@ class BenchmarkAuditReportGenerator:
         if not rpt_dir.exists():
             raise FileNotFoundError(f"Reports directory not found: {rpt_dir}")
 
+        # --- Collect scores from JSON files that don't contain "_findings" ---
+        scores: List[Tuple[str, float]] = []
+        for p in rpt_dir.rglob('*.json'):
+            if '_findings' not in p.name:  # exclude files with "_findings"
+                try:
+                    data = json.loads(p.read_text(encoding='utf-8'))
+                    if isinstance(data, dict) and 'score' in data:
+                        score_val = data['score']
+                        if isinstance(score_val, (int, float)) and 0.0 <= score_val <= 1.0:
+                            scores.append((p.name, float(score_val)))
+                except Exception:
+                    continue
+
+        # Calculate bench_score as average of all scores
+        bench_score = sum(s for _, s in scores) / len(scores) if scores else None
+
+        # --- Collect findings ---
         aggregated = {
             'total_findings': 0,
             'by_detector': {},
@@ -25,21 +42,17 @@ class BenchmarkAuditReportGenerator:
             'questions': {},
         }
 
-        # collect findings from any JSON files that include a 'findings' key
         findings_list = []
         for p in rpt_dir.rglob('*_findings.json'):
             try:
                 data = json.loads(p.read_text(encoding='utf-8'))
             except Exception:
                 continue
-            # sometimes detectors write arrays (e.g., per_question lists); skip those
             if isinstance(data, dict):
-                # direct findings
                 if 'findings' in data and isinstance(data.get('findings'), list):
                     for f in data.get('findings'):
                         f_rec = dict(f)
                         findings_list.append(f_rec)
-                # comparison-style reports may have nested 'full'/'blind' entries containing findings
                 else:
                     for side in ('full', 'blind'):
                         if side in data and isinstance(data[side], dict) and 'findings' in data[side] and isinstance(data[side].get('findings'), list):
@@ -48,7 +61,7 @@ class BenchmarkAuditReportGenerator:
                                 f_rec.setdefault('comparison_side', side)
                                 findings_list.append(f_rec)
 
-        # build aggregates
+        # Build aggregates
         by_detector = defaultdict(list)
         by_severity = defaultdict(list)
         questions = defaultdict(list)
@@ -67,14 +80,35 @@ class BenchmarkAuditReportGenerator:
         aggregated['by_severity'] = {k: {'count': len(v), 'examples': v[:10]} for k, v in by_severity.items()}
         aggregated['questions'] = {k: {'count': len(v), 'findings': v} for k, v in questions.items()}
 
-        # write aggregated JSON
+        # Write aggregated JSON
         agg_path = rpt_dir / 'aggregated_findings.json'
         agg_path.write_text(json.dumps(aggregated, ensure_ascii=False, indent=2), encoding='utf-8')
 
-        # create a human-readable markdown report
+        # --- Create markdown report ---
         md_lines = []
         md_lines.append('# Benchmark Audit Report')
         md_lines.append('')
+
+        # --- Scores section (first block) ---
+        md_lines.append('## Scores')
+        md_lines.append('')
+        
+        if scores:
+            md_lines.append(f'*Benchmark Score (average):* **{bench_score:.4f}**' if bench_score is not None else '*Benchmark Score:* N/A')
+            md_lines.append('')
+            md_lines.append('### Individual Scores')
+            md_lines.append('')
+            md_lines.append('| File | Score |')
+            md_lines.append('|------|-------|')
+            for filename, score in sorted(scores, key=lambda x: x[1], reverse=True):
+                md_lines.append(f'| {filename} | {score:.4f} |')
+            md_lines.append('')
+            md_lines.append(f'*Total files with scores:* {len(scores)}')
+        else:
+            md_lines.append('*No score files found.*')
+        md_lines.append('')
+
+        # --- Findings sections ---
         md_lines.append(f'*Total findings:* {aggregated["total_findings"]}')
         md_lines.append('')
 
@@ -98,7 +132,6 @@ class BenchmarkAuditReportGenerator:
         # Top critical questions
         md_lines.append('## Top 20 Critical Questions')
         criticals = [f for f in findings_list if f.get('severity') == 'critical']
-        # group by question id
         crit_by_q = defaultdict(list)
         for f in criticals:
             qid = f.get('question_id')
@@ -114,4 +147,9 @@ class BenchmarkAuditReportGenerator:
         md_path = rpt_dir / 'benchmark_audit_report.md'
         md_path.write_text('\n'.join(md_lines), encoding='utf-8')
 
-        return {'aggregated_path': str(agg_path), 'markdown_path': str(md_path)}
+        return {
+            'aggregated_path': str(agg_path),
+            'markdown_path': str(md_path),
+            'scores': scores,
+            'bench_score': bench_score
+        }

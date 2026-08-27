@@ -119,6 +119,7 @@ class BaseDetector(ABC):
         Extract MCQ option letter (A/B/C/D/etc) from value.
         Returns 'Z' if no valid option found.
         """
+        valid_options = [opt.upper() for opt in valid_options]
         if value is None:
             return "Z"
 
@@ -139,13 +140,15 @@ class BaseDetector(ABC):
 
         # Try to extract letter from the value itself
         # Single letter
-        if len(s) == 1 and s.isalpha() and s.upper() in valid_options:
+        if s.isalpha() and s.upper() in valid_options:
             return s.upper()
 
         # No valid option found
         return "Z"
 
     def _get_answers_by_model(self, context: AnalysisContext):
+        dataset = getattr(context, "dataset", {})
+        
         rp = getattr(context, "result_paths", {})
         loaded = getattr(context, "loaded_results", {})
 
@@ -179,7 +182,7 @@ class BaseDetector(ABC):
                 for idx, row in res.iterrows():
                     # Determine if the answer is correct
                     hit = None
-                    for hcol in ["hit", "correct", "is_correct"]:
+                    for hcol in ["hit", "score", "correct", "is_correct"]:
                         if hcol in res.columns:
                             hit = row.get(hcol)
                             break
@@ -194,16 +197,19 @@ class BaseDetector(ABC):
                         "True",
                         "true",
                         "TRUE",
+                        "ИСТИНА",
                     ]:
                         # Use the correct answer
                         val = row.get("answer") or None
                         option = val if val is not None else "Z"
                     else:
                         # Use the model's prediction
-                        val = row.get("prediction") or None
-                        option = self._extract_mcq_option(val, valid_options)
-
-                    answers.append(option)
+                        if dataset.TYPE == "MCQ":
+                            val = row.get("prediction") or None
+                            option = self._extract_mcq_option(val, valid_options)
+                        else:
+                            option = row.get("extracted") or None
+                    answers.append(option or "Z")
 
                 answers_by_model[k] = answers
 
@@ -250,7 +256,7 @@ class BaseDetector(ABC):
                 for idx, row in res.iterrows():
                     # Determine if the answer is correct
                     hit = None
-                    for hcol in ["hit", "correct", "is_correct"]:
+                    for hcol in ["hit", "score", "correct", "is_correct"]:
                         if hcol in res.columns:
                             hit = row.get(hcol)
                             break
@@ -265,6 +271,7 @@ class BaseDetector(ABC):
                         "True",
                         "true",
                         "TRUE",
+                        "ИСТИНА",
                     ]:
                         # Use the correct answer
                         val = row.get("answer") or None

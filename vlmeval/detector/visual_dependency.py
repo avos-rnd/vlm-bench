@@ -41,7 +41,7 @@ class VisualDependencyDetector(BaseDetector):
             if isinstance(res, list):
                 for r in res:
                     hit = None
-                    for hcol in ["hit", "correct", "is_correct", "isCorrect"]:
+                    for hcol in ["hit", "score", "correct", "is_correct", "isCorrect"]:
                         if isinstance(r, dict) and hcol in r:
                             hit = r.get(hcol)
                             break
@@ -71,14 +71,14 @@ class VisualDependencyDetector(BaseDetector):
             # now res is DataFrame
             for idx, row in res.iterrows():
                 hit = None
-                for hcol in ["hit", "correct", "is_correct", "isCorrect"]:
+                for hcol in ["hit", "score", "correct", "is_correct", "isCorrect"]:
                     if hcol in res.columns:
                         hit = row.get(hcol)
                         break
 
                 if hit is not None:
                     if (
-                        str(hit).lower() in ["true", "1", "t", "yes"]
+                        str(hit).lower() in ["true", "1", "t", "yes", "ИСТИНА"]
                         or hit is True
                         or hit == 1
                     ):

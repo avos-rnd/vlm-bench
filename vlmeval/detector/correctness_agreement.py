@@ -65,7 +65,7 @@ class CorrectnessAgreementDetector(BaseDetector):
         discrimination = self._binary_entropy(acc_full)
 
         # How much image helps
-        vision_gain = max(0.0, acc_full - acc_blind)
+        vision_gain = max(0.0, acc_full * (1 - acc_blind))
 
         # Require BOTH:
         # 1. model separation
@@ -120,7 +120,7 @@ class CorrectnessAgreementDetector(BaseDetector):
                 for idx, row in res.iterrows():
                     # Prefer explicit correctness columns
                     hit = None
-                    for hcol in ["hit", "correct", "is_correct", "isCorrect"]:
+                    for hcol in ["hit", "score", "correct", "is_correct", "isCorrect"]:
                         if hcol in res.columns:
                             hit = row.get(hcol)
                             break
@@ -150,17 +150,16 @@ class CorrectnessAgreementDetector(BaseDetector):
                         ans_norm = self._normalize_answer(ans)
                         if pred_opt and pred_opt != "Z" and ans_norm is not None:
                             # if ans is already a single-letter option, compare
-                            if len(str(ans_norm)) == 1:
-                                labels.append(
-                                    1 if pred_opt == str(ans_norm).upper() else 0
-                                )
-                                continue
+                            labels.append(
+                                1 if str(pred_opt).upper() == str(ans_norm).upper() else 0
+                            )
+                            continue
                         # Fallback string compare
                         if pred is None or ans is None:
                             labels.append(None)
                         else:
                             labels.append(
-                                1 if self._normalize_answer(pred) == ans_norm else 0
+                                1 if str(self._normalize_answer(pred)).upper() == str(ans_norm).upper() else 0
                             )
                         continue
 

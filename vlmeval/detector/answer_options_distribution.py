@@ -2,7 +2,7 @@ from typing import Dict, Any
 import math
 import json
 from pathlib import Path
-from .base_detector import BaseDetector
+from .base_detector import BaseDetector, DetectorInputError
 from datetime import datetime
 
 
@@ -17,6 +17,11 @@ class AnswerOptionsDistributionDetector(BaseDetector):
         # This method now accepts an AnalysisContext as described in FIXES.md.
         dataset = getattr(context, "dataset", None)
         dataset_name = getattr(context, "dataset_name", None)
+        if dataset.TYPE != "MCQ":
+            raise DetectorInputError(
+                "AnswerOptionsDistributionDetector only supports MCQ datasets."
+            )
+
         samples = None
         if hasattr(dataset, "data"):
             try:

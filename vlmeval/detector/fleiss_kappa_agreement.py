@@ -59,10 +59,6 @@ class FleissKappaAgreementDetector(BaseDetector):
                 )
 
             dataset = getattr(ctx, "dataset")
-            if dataset.TYPE != "MCQ":
-                raise DetectorInputError(
-                    "FleissKappaAgreementDetector only supports MCQ datasets."
-                )
 
             answers_by_model, model_keys = self._get_answers_by_model(ctx)
 
@@ -90,7 +86,7 @@ class FleissKappaAgreementDetector(BaseDetector):
                         skip = True
                         break
                     answers[k] = ans
-                    categories_set.add(ans)
+                    categories_set.add(str(ans).upper())
                 if skip:
                     continue
                 counts_map = {}
@@ -165,7 +161,7 @@ class FleissKappaAgreementDetector(BaseDetector):
                         if a1 is None or a2 is None:
                             continue
                         total += 1
-                        if a1 == a2:
+                        if str(a1).upper() == str(a2).upper():
                             agree += 1
                     pairwise[k1][k2] = (agree / total) if total > 0 else None
 
@@ -194,8 +190,8 @@ class FleissKappaAgreementDetector(BaseDetector):
 
             if report["fleiss_kappa"] is None:
                 report["agreement_score"] = None
-                report["risk_score"] = None
-                report["score"] = None
+                report["risk_score"] = 1.0
+                report["score"] = float(report["risk_score"])
             else:
                 report["agreement_score"] = report["fleiss_kappa"]
                 report["risk_score"] = (1.0 - report["fleiss_kappa"]) / 2.0
