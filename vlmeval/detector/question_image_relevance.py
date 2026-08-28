@@ -1,17 +1,50 @@
-from typing import Dict, Any, List, Optional
+"""Semantic relevance between question text and its associated image.
+
+This detector inspects the dataset itself (no model results needed): for
+every question it encodes the question text (plus optional hint) and the
+associated image with a CLIP model and computes their cosine similarity.
+Questions are classified as high/medium/low relevance against configurable
+thresholds; low- and medium-relevance questions are reported as findings
+keyed by the dataset-level ``index`` value.
+"""
+from typing import Dict, Any, Optional
 
 from tqdm import tqdm
 from .base_detector import BaseDetector, AnalysisContext, DetectorInputError
 from datetime import datetime
 from pathlib import Path
 import json
-import re
 
 from vlmeval.smp.file import get_logger
 logger = get_logger(__name__)
 
 
 class QuestionImageRelevanceDetector(BaseDetector):
+    """Estimate CLIP-based image-text relevance for every benchmark question.
+
+    Cosine similarity between CLIP embeddings of the question text and the
+    image is thresholded into three classes:
+
+    - ``high`` — ``similarity >= threshold_high`` (default 0.35);
+    - ``medium`` — ``similarity >= threshold_medium`` (default 0.20);
+      emitted as a ``warning`` finding;
+    - ``low`` — below both thresholds; emitted as a ``critical`` finding
+      (the image may be unrelated to the question).
+
+    Questions whose image is missing or unreadable, or whose encoding
+    fails, are recorded with ``similarity = None`` and a diagnostic
+    classification (``no_image`` / ``image_load_error`` /
+    ``encode_error``) instead of being scored.
+
+    Notes
+    -----
+    Requires an installed CLIP backend (``clip`` or ``open_clip``);
+    :class:`DetectorInputError` is raised otherwise. CLIP similarity is a
+    coarse proxy: long or highly compositional questions may be truncated
+    for tokenization, and low similarity does not always mean the image is
+    irrelevant — treat findings as candidates for manual review.
+    """
+
     NAME = 'question_image_relevance'
     DESCRIPTION = 'Estimate semantic relevance between question (text) and associated image.'
     DEFAULT_CONFIG = {
@@ -27,6 +60,24 @@ class QuestionImageRelevanceDetector(BaseDetector):
     SUPPORTS_COMPARISON = False
 
     def _load_backend(self, device='cpu'):
+        """Load a CLIP encoding backend.
+
+        Parameters
+        ----------
+        device : str, optional
+            Torch device for the model (default ``'cpu'``).
+
+        Returns
+        -------
+        tuple
+            ``(kind, model, preprocess, tokenizer, torch, device)`` where
+            ``kind`` is ``'clip'`` (OpenAI CLIP) or ``'open_clip'``.
+
+        Raises
+        ------
+        DetectorInputError
+            When neither ``clip`` nor ``open_clip`` can be imported.
+        """
         # Try OpenAI CLIP, then open_clip
         try:
             import clip
@@ -49,6 +100,24 @@ class QuestionImageRelevanceDetector(BaseDetector):
         raise DetectorInputError('No supported CLIP backend found. Install "clip" or "open_clip" to use this detector.')
 
     def _get_image_path(self, dataset, row_index, row) -> Optional[str]:
+        """Resolve the image file path for one dataset row.
+
+        Parameters
+        ----------
+        dataset : ImageBaseDataset or compatible
+            Dataset object; ``dump_image`` is preferred when available.
+        row_index : object
+            Positional row index (unused; kept for interface clarity).
+        row : pandas.Series or dict
+            Dataset row; ``image_path``/``image`` columns are the
+            fallback.
+
+        Returns
+        -------
+        str or None
+            Path to the (first) image of the question, or None when no
+            image can be resolved.
+        """
         # Reuse dataset.dump_image or image_path column like build_prompt
         try:
             if hasattr(dataset, 'dump_image'):
@@ -67,6 +136,30 @@ class QuestionImageRelevanceDetector(BaseDetector):
         return None
 
     def analyze(self, context: AnalysisContext, **kwargs) -> Dict[str, Any]:
+        """Compute the question-image relevance report for the dataset.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs; only ``context.dataset.data`` is used (model
+            results are not required).
+        **kwargs
+            Unused; accepted for interface compatibility.
+
+        Returns
+        -------
+        dict
+            Report with ``mean_relevance``, low/medium/high rate
+            percentages, ``thresholds``, ``summary`` and per-question
+            ``findings`` (dataset-level ``question_id`` from the frame's
+            ``index`` column).
+
+        Raises
+        ------
+        DetectorInputError
+            When the dataset is unavailable or no CLIP backend is
+            installed.
+        """
         dataset = getattr(context, 'dataset', None)
         if dataset is None or not hasattr(dataset, 'data'):
             raise DetectorInputError('Dataset not available in context')
@@ -119,6 +212,26 @@ class QuestionImageRelevanceDetector(BaseDetector):
                 model.eval()
 
                 def _safe_tokenize(tokenizer_fn, text):
+                    """Tokenize text robustly against context-length limits.
+
+                    Parameters
+                    ----------
+                    tokenizer_fn : callable
+                        CLIP/open_clip tokenizer.
+                    text : str
+                        Text to tokenize.
+
+                    Returns
+                    -------
+                    object
+                        Token tensor (backend-specific).
+
+                    Raises
+                    ------
+                    RuntimeError
+                        When tokenization fails even for the shortest
+                        truncated prefix.
+                    """
                     # Try direct tokenization, then try truncate flag, then progressively shorten text
                     try:
                         return tokenizer_fn([text])
@@ -212,6 +325,28 @@ class QuestionImageRelevanceDetector(BaseDetector):
         return report
 
     def run(self, context: AnalysisContext, out_dir: str = None, **kwargs):
+        """Run the detector and export per-question relevance files.
+
+        In addition to the base JSON report, writes
+        ``reports/<NAME>/question_image_relevance.json`` (dataset report),
+        ``low_relevance_questions.json`` (critical questions) and
+        ``per_question.json`` (every question), keyed by dataset-level
+        ``question_id``.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs (see :meth:`analyze`).
+        out_dir : str, optional
+            Audit output directory; exports are skipped when omitted.
+        **kwargs
+            Forwarded to :meth:`analyze`.
+
+        Returns
+        -------
+        dict
+            The detector report returned by :meth:`analyze`.
+        """
         res = super().run(context, out_dir=out_dir, **kwargs)
         if out_dir and hasattr(self, '_dataset_report'):
             try:

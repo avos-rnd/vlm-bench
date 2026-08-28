@@ -1,5 +1,27 @@
 # NeurIPS 2026 Workshop Readiness Plan
 
+> **STATUS UPDATE (2026-08-28).** This document is kept for history; the
+> operational plan now lives in [WorkPlan_TAI-Eval.md](WorkPlan_TAI-Eval.md).
+> Done since this plan was written:
+> - blind-run protocol is a first-class CLI flag (`run.py --blind`), documented
+>   in [BenchmarkAudit.md](BenchmarkAudit.md); model-wrapper hacks reverted (§5.1 — DONE);
+> - detectors aligned on dataset `index`, ground-truth back-fill removed,
+>   abstention sentinel excluded from votes; unit tests in
+>   `tests/test_detectors.py` (§10.3 — DONE);
+> - run manifests record commit/argv/generation params/blind flag (§8 items — DONE);
+> - related-work & gap analysis with verified citations:
+>   [RelatedWork_Gap_Analysis.md](RelatedWork_Gap_Analysis.md) (§9 concurrent-work check — DONE;
+>   nb: DatBench/Fantastic Bugs/BenchMarker are concurrent — positioning updated);
+> - manuscript skeleton with placeholders: `paper/main.tex` + verified `paper/references.bib`;
+> - human-verification protocol: [AnnotationProtocol.md](AnnotationProtocol.md) +
+>   `scripts/sample_for_annotation.py`; figures/tables:
+>   `scripts/audit_paper_assets.py`;
+> - SSL bypass in `vlmeval/__init__.py` is now opt-in via `VLMEVAL_INSECURE_SSL=1` (§10.4 — DONE).
+> Remaining: execute the experiment matrix (see the runbook), judge-sensitivity
+> runs, manual validation, and the final text.
+> **Anonymity note:** exclude this file and the runbook from any anonymized
+> submission artifact; the workshop-target section was removed from README.
+
 ## 1. Scope of the paper line
 
 This document is for the **benchmark-audit** line in this repository, not for the full VLMEvalKit surface area.

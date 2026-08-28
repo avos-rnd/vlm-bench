@@ -1,3 +1,13 @@
+"""Semantic similarity between MCQ answer options (distractor quality).
+
+This detector inspects the dataset itself (no model results needed): for
+every multiple-choice question it computes pairwise semantic similarities
+between the answer options, using sentence-transformer embeddings when
+available and a difflib string-ratio fallback otherwise. Questions whose
+most similar option pair exceeds the warning/critical thresholds — or that
+contain literal duplicate options — are reported as findings keyed by the
+dataset-level ``index`` value.
+"""
 from typing import Dict, Any, List, Tuple, Optional
 
 from tqdm import tqdm
@@ -5,7 +15,6 @@ from .base_detector import BaseDetector, AnalysisContext, DetectorInputError
 from datetime import datetime
 from pathlib import Path
 import json
-import math
 import re
 from vlmeval.smp.file import get_logger
 
@@ -14,6 +23,29 @@ logger = get_logger(__name__)
 
 
 class DistractorSimilarityDetector(BaseDetector):
+    """Detect near-duplicate or overly similar MCQ answer options.
+
+    For each question the maximum and mean pairwise similarity between
+    non-missing options is computed. Severity per question:
+
+    - ``critical`` — ``max_similarity >= threshold_critical`` (default
+      0.90): options are near-duplicates and the question may have no
+      single defensible answer;
+    - ``warning`` — ``max_similarity >= threshold_warning`` (default
+      0.75): distractors are suspiciously close to each other or to the
+      correct option;
+    - ``healthy`` — otherwise.
+
+    Notes
+    -----
+    The ``backend`` config selects the similarity engine: ``'auto'`` tries
+    ``sentence_transformers`` (all-MiniLM-L6-v2 cosine similarity) and
+    falls back to ``difflib.SequenceMatcher`` string ratios, whose scale
+    is not directly comparable to embedding cosine — thresholds may need
+    retuning for the fallback. Placeholder tokens (``nan``/``none``/
+    ``n/a``/empty) are treated as missing options and excluded.
+    """
+
     NAME = 'distractor_similarity'
     DESCRIPTION = 'Detect semantically-similar MCQ distractors within dataset.'
     DEFAULT_CONFIG = {
@@ -28,6 +60,21 @@ class DistractorSimilarityDetector(BaseDetector):
     SUPPORTS_COMPARISON = False
 
     def _find_options_columns(self, df) -> List[List[str]]:
+        """Collect the per-question option lists from a dataset frame.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataset ``data`` frame. Options are read from an ``options``
+            or ``choices`` list column, or from single-letter ``A``/``B``/
+            ... columns.
+
+        Returns
+        -------
+        list of list of str
+            One option list per row; empty list when no option columns
+            are found.
+        """
         # Attempt common column names
         if 'options' in df.columns:
             return [list(r) if r is not None else [] for r in df['options']]
@@ -42,6 +89,22 @@ class DistractorSimilarityDetector(BaseDetector):
         return []
 
     def _get_correct_index(self, ans_val, options: List[str]) -> Optional[int]:
+        """Resolve the ground-truth answer to a positional option index.
+
+        Parameters
+        ----------
+        ans_val : object
+            Raw answer annotation; interpreted as an option letter
+            (``'A'``...), a numeric index, or the exact option text.
+        options : list of str
+            Normalized option texts of the question.
+
+        Returns
+        -------
+        int or None
+            Zero-based index of the correct option, or None when the
+            answer cannot be resolved.
+        """
         if ans_val is None:
             return None
         # direct match
@@ -72,6 +135,15 @@ class DistractorSimilarityDetector(BaseDetector):
         return None
 
     def _embed_backend(self):
+        """Select and initialize the similarity backend.
+
+        Returns
+        -------
+        tuple of (str, object or None)
+            ``('st', model)`` with a loaded ``SentenceTransformer`` when
+            the configured backend is available, otherwise
+            ``('difflib', None)`` for the string-ratio fallback.
+        """
         cfg = self.config.get('backend', 'auto')
         if cfg in ('st', 'sentence_transformers', 'auto'):
             try:
@@ -84,6 +156,23 @@ class DistractorSimilarityDetector(BaseDetector):
         return ('difflib', None)
 
     def _pairwise_similarities(self, texts: List[str], backend_info) -> List[Tuple[int, int, float]]:
+        """Compute all pairwise similarities between option texts.
+
+        Parameters
+        ----------
+        texts : list of str
+            Option texts of one question.
+        backend_info : tuple
+            Backend descriptor from :meth:`_embed_backend`.
+
+        Returns
+        -------
+        list of tuple of (int, int, float)
+            Triples ``(i, j, similarity)`` for every pair ``i < j``:
+            cosine similarity of normalized embeddings for the
+            sentence-transformer backend, ``SequenceMatcher`` ratio for
+            the difflib fallback.
+        """
         kind, model = backend_info
         sims = []
         n = len(texts)
@@ -111,6 +200,29 @@ class DistractorSimilarityDetector(BaseDetector):
             return sims
 
     def analyze(self, context: AnalysisContext, **kwargs) -> Dict[str, Any]:
+        """Compute the distractor-similarity report for the dataset.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs; only ``context.dataset.data`` is used (model
+            results are not required).
+        **kwargs
+            Unused; accepted for interface compatibility.
+
+        Returns
+        -------
+        dict
+            Dataset-level report with ``avg_max_pair_similarity``,
+            ``duplicate_rate_percent``, ``high_similarity_rate_percent``,
+            ``critical_rate_percent``, ``summary`` and per-question
+            ``findings`` (dataset-level ``question_id``).
+
+        Raises
+        ------
+        DetectorInputError
+            When the dataset is unavailable or exposes no option columns.
+        """
         dataset = getattr(context, 'dataset', None)
         if dataset is None or not hasattr(dataset, 'data'):
             raise DetectorInputError('Dataset not available in context')
@@ -129,6 +241,9 @@ class DistractorSimilarityDetector(BaseDetector):
         duplicate_count = 0
 
         MISSING_TOKENS = set(['nan', 'none', 'n/a', 'na', ''])
+
+        # dataset-level question ids: row idx of options_rows maps to df_ids[idx]
+        df_ids = list(df['index']) if 'index' in df.columns else list(range(len(df)))
 
         for idx, opts in enumerate(options_rows):
             # normalize options as strings
@@ -183,7 +298,7 @@ class DistractorSimilarityDetector(BaseDetector):
             else:
                 severity = 'healthy'
 
-            per_q_reports.append({'question_id': idx, 'question': df.get('question', df.get('question_text', '')).iloc[idx] if 'question' in df.columns or 'question_text' in df.columns else None, 'options': {chr(ord('A') + i): norm_opts[i] if i < len(norm_opts) else '' for i in range(len(norm_opts))}, 'max_similarity': float(max_sim), 'mean_similarity': float(mean_sim), 'max_correct_similarity': float(max_correct_sim) if max_correct_sim is not None else None, 'severity': severity, 'duplicate_options': bool(has_dup), 'most_similar_pair': [chr(ord('A') + most_similar_pair[0]), chr(ord('A') + most_similar_pair[1])] if most_similar_pair is not None else None})
+            per_q_reports.append({'question_id': df_ids[idx], 'question': df.get('question', df.get('question_text', '')).iloc[idx] if 'question' in df.columns or 'question_text' in df.columns else None, 'options': {chr(ord('A') + i): norm_opts[i] if i < len(norm_opts) else '' for i in range(len(norm_opts))}, 'max_similarity': float(max_sim), 'mean_similarity': float(mean_sim), 'max_correct_similarity': float(max_correct_sim) if max_correct_sim is not None else None, 'severity': severity, 'duplicate_options': bool(has_dup), 'most_similar_pair': [chr(ord('A') + most_similar_pair[0]), chr(ord('A') + most_similar_pair[1])] if most_similar_pair is not None else None})
             max_pairs.append(max_sim)
 
         total_q = len(per_q_reports)
@@ -226,13 +341,34 @@ class DistractorSimilarityDetector(BaseDetector):
         return dataset_report
 
     def run(self, context: AnalysisContext, out_dir: str = None, **kwargs):
+        """Run the detector and export per-question similarity files.
+
+        In addition to the base JSON report, writes
+        ``reports/<NAME>/high_similarity_questions.json`` (warning and
+        critical questions) and ``reports/<NAME>/all_stat.json`` (every
+        question), both keyed by dataset-level ``question_id``.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs (see :meth:`analyze`).
+        out_dir : str, optional
+            Audit output directory; exports are skipped when omitted.
+        **kwargs
+            Forwarded to :meth:`analyze`.
+
+        Returns
+        -------
+        dict
+            The detector report returned by :meth:`analyze`.
+        """
         res = super().run(context, out_dir=out_dir, **kwargs)
         if out_dir and hasattr(self, '_dataset_report'):
             try:
                 rpt_dir = Path(out_dir) / 'reports' / self.NAME
                 rpt_dir.mkdir(parents=True, exist_ok=True)
                 (rpt_dir / 'high_similarity_questions.json').write_text(json.dumps(self._per_question, ensure_ascii=False, indent=2), encoding='utf-8')
-                
+
                 (rpt_dir / 'all_stat.json').write_text(json.dumps(self._all_stat, ensure_ascii=False, indent=2), encoding='utf-8')
             except Exception:
                 logger.exception('Failed to write distractor similarity reports')

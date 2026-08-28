@@ -4,13 +4,37 @@ from .base_detector import BaseDetector, DetectorInputError, AnalysisContext
 from datetime import datetime
 from pathlib import Path
 import json
-import math
 from vlmeval.smp.file import get_logger
 
 logger = get_logger(__name__)
 
 
 class VisualDependencyDetector(BaseDetector):
+    """Classify questions by their dependence on visual input.
+
+    For every aligned question, per-model correctness labels are compared
+    between the full run (with images) and the blind run (images stripped
+    via ``run.py --blind``). Each question is assigned one of four
+    categories based on the model-averaged accuracies:
+
+    - ``visual_dependent`` — solved by (almost) all models with the image
+      and by (almost) none without it (thresholds
+      ``visual_dependent_full_thresh`` / ``visual_dependent_blind_thresh``);
+    - ``visual_supplement`` — the image raises accuracy by at least
+      ``visual_supplement_gain_thresh``;
+    - ``conflicting_visual_signal`` — blind accuracy exceeds full accuracy
+      by more than ``conflicting_gain_thresh`` (the image *hurts*);
+    - ``text_only`` — accuracies are (nearly) equal: the image is not
+      needed to answer as well as with it.
+
+    Notes
+    -----
+    Correctness labels come from the evaluated result files (``hit``
+    column), i.e. they are judge-mediated. The judge protocol must be held
+    fixed between the full and blind runs; see the paper's judge-sensitivity
+    analysis for how much this choice matters.
+    """
+
     NAME = 'visual_dependency'
     DESCRIPTION = 'Assess how much benchmark questions depend on visual input by comparing full vs blind runs.'
     DEFAULT_CONFIG = {
@@ -24,7 +48,22 @@ class VisualDependencyDetector(BaseDetector):
     REQUIRES_MULTIPLE_MODELS = True
 
     def _extract_correctness_list(self, res) -> List[int]:
-        """Return list of correctness labels per sample: 1,0 or None when unknown."""
+        """Extract per-question correctness labels from a result frame.
+
+        Parameters
+        ----------
+        res : pandas.DataFrame or list of dict or dict or None
+            Aligned evaluated result. Correctness is read from the first
+            available of the ``hit``/``correct``/``is_correct``/``isCorrect``
+            columns; when absent, a normalized string comparison of
+            ``prediction`` vs ``answer`` is used as fallback.
+
+        Returns
+        -------
+        list of (int or None) or None
+            One label per aligned row: 1 (correct), 0 (incorrect) or None
+            (undecidable). None is returned when the input is unusable.
+        """
         labels = []
         if res is None:
             return None
@@ -95,6 +134,27 @@ class VisualDependencyDetector(BaseDetector):
             return None
 
     def analyze(self, context: AnalysisContext, **kwargs) -> Dict[str, Any]:
+        """Compute the visual-dependency report for the audited dataset.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs; requires matching full and blind runs (same
+            ``eval_id``) for at least two models.
+
+        Returns
+        -------
+        dict
+            Report with ``average_visual_gain``, ``category_distribution``,
+            ``visual_dependency_score``, ``summary`` and per-question
+            ``findings`` (with dataset-level ``question_id``).
+
+        Raises
+        ------
+        DetectorInputError
+            When no matching full/blind pairs exist or no correctness
+            labels can be extracted.
+        """
         rp = getattr(context, 'result_paths', {})
         loaded = getattr(context, 'loaded_results', {})
         if not rp or len(rp) < 1:
@@ -170,6 +230,7 @@ class VisualDependencyDetector(BaseDetector):
             raise DetectorInputError('No extractable correctness labels in full runs.')
 
         total_q = len(ref)
+        qids = self._get_question_ids(context)
 
         per_question = []
         counts = Counter()
@@ -222,11 +283,15 @@ class VisualDependencyDetector(BaseDetector):
 
             counts[category] += 1
             per_question.append({
-                'question_id': i,
+                'question_id': qids[i] if i < len(qids) else i,
                 'full_accuracy': full_acc,
                 'blind_accuracy': blind_acc,
                 'visual_gain': gain,
                 'category': category,
+                # per-model correctness enables leave-one-model-out and
+                # bootstrap stability analyses (scripts/audit_stability.py)
+                'per_model': {m: {'full': full_vals[j], 'blind': blind_vals[j]}
+                              for j, m in enumerate(model_keys)},
             })
 
         included_q = len(per_question)

@@ -182,6 +182,35 @@ def dump(data, f, **kwargs):
         return dump_pkl(data, pkl_file, **kwargs)
 
 
+def is_blind_mode():
+    """Check whether the current run is a blind (image-free) run.
+
+    Blind mode is toggled by the ``VLMEVAL_BLIND`` environment variable,
+    which is set by ``run.py --blind``. In blind mode all visual content
+    (image/video message items) is stripped before generation and every
+    prediction file name receives a ``_blind`` suffix so that full and
+    blind artifacts can coexist in the same eval directory.
+
+    Returns
+    -------
+    bool
+        True if ``VLMEVAL_BLIND`` is set to ``'1'``, False otherwise.
+    """
+    return os.getenv('VLMEVAL_BLIND', '0') == '1'
+
+
+def blind_tag():
+    """Return the file-name suffix for the current run variant.
+
+    Returns
+    -------
+    str
+        ``'_blind'`` when blind mode is active (see :func:`is_blind_mode`),
+        otherwise an empty string.
+    """
+    return '_blind' if is_blind_mode() else ''
+
+
 def get_pred_file_format():
     pred_format = os.getenv('PRED_FORMAT', '').lower()
     if pred_format == '':
@@ -200,18 +229,49 @@ def get_eval_file_format():
         return eval_format
 
 
-def get_pred_file_path(work_dir, model_name, dataset_name, use_env_format=True):
+def get_pred_file_path(work_dir, model_name, dataset_name, use_env_format=True, variant=None):
+    """Build the path of a prediction file for a model/dataset pair.
+
+    Parameters
+    ----------
+    work_dir : str
+        Directory that holds the prediction artifacts (usually
+        ``outputs/<model>/<eval_id>``).
+    model_name : str
+        Registered model name.
+    dataset_name : str
+        Registered dataset name.
+    use_env_format : bool, optional
+        If True, honour the ``PRED_FORMAT`` environment variable
+        (xlsx/tsv/json); otherwise default to xlsx.
+    variant : {None, 'full', 'blind'}, optional
+        Which run variant the path refers to. ``None`` (default) resolves
+        from the current blind mode (see :func:`is_blind_mode`), so callers
+        inside an inference/eval run need not pass anything. Pass an explicit
+        value when addressing a specific variant from analysis code.
+
+    Returns
+    -------
+    str
+        Path of the form ``<work_dir>/<model>_<dataset>[_blind].<ext>``.
+    """
+    if variant is None:
+        tag = blind_tag()
+    else:
+        assert variant in ('full', 'blind'), f'Unsupported variant {variant}'
+        tag = '_blind' if variant == 'blind' else ''
+    stem = f'{model_name}_{dataset_name}{tag}'
     if use_env_format:
         file_format = get_pred_file_format()
         if file_format == 'xlsx':
-            return osp.join(work_dir, f'{model_name}_{dataset_name}.xlsx')
+            return osp.join(work_dir, f'{stem}.xlsx')
         elif file_format == 'tsv':
-            return osp.join(work_dir, f'{model_name}_{dataset_name}.tsv')
+            return osp.join(work_dir, f'{stem}.tsv')
         elif file_format == 'json':
-            return osp.join(work_dir, f'{model_name}_{dataset_name}.json')
+            return osp.join(work_dir, f'{stem}.json')
     else:
         # default
-        return osp.join(work_dir, f'{model_name}_{dataset_name}.xlsx')
+        return osp.join(work_dir, f'{stem}.xlsx')
 
 
 def get_eval_file_path(eval_file, judge_model, use_env_format=True):

@@ -1,11 +1,15 @@
+import os
 import ssl
 import warnings
 
 # Ignore pkg_resources warning due to jieba depends on it.
 warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
 
-# Temporarily bypass SSL certificate verification to download files from oss.
-ssl._create_default_https_context = ssl._create_unverified_context
+# SSL certificate verification is ON by default. Some mirrors (e.g. certain
+# OSS endpoints) ship broken certificate chains; set VLMEVAL_INSECURE_SSL=1
+# to opt into the legacy unverified behavior for downloads.
+if os.getenv('VLMEVAL_INSECURE_SSL', '0') == '1':
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 
 def load_env():

@@ -8,12 +8,45 @@ import torch.distributed as dist
 from tqdm import tqdm
 
 from vlmeval.config import supported_VLM
-from vlmeval.smp import (dump, get_logger, get_pred_file_format, get_pred_file_path,
-                         get_rank_and_world_size, load)
+from vlmeval.smp import (blind_tag, dump, get_logger, get_pred_file_format, get_pred_file_path,
+                         get_rank_and_world_size, is_blind_mode, load)
 from vlmeval.utils import track_progress_rich
 
 logger = get_logger(__name__)
 FAIL_MSG = 'Failed to obtain answer via API.'
+
+VISUAL_MSG_TYPES = ('image', 'video')
+
+
+def strip_visual_content(struct):
+    """Remove visual items from a prompt message list for blind runs.
+
+    Parameters
+    ----------
+    struct : list of dict
+        Prompt message list as produced by ``dataset.build_prompt`` or
+        ``model.build_prompt``; each item is a dict with at least a
+        ``'type'`` key (``'text'``, ``'image'``, ``'video'``, ...).
+
+    Returns
+    -------
+    list of dict
+        The same message list with every item whose type is in
+        :data:`VISUAL_MSG_TYPES` removed. Text items are untouched, so the
+        textual prompt (question, options, hints) is identical to the full
+        run. If stripping would leave an empty list, a single empty text
+        item is returned so that model wrappers do not fail.
+
+    Notes
+    -----
+    This is the single implementation of the blind-run protocol used by
+    ``run.py --blind`` for both local and API models. Model wrappers must
+    never implement their own image dropping.
+    """
+    stripped = [x for x in struct if x.get('type') not in VISUAL_MSG_TYPES]
+    if not stripped:
+        stripped = [dict(type='text', value='')]
+    return stripped
 
 
 def parse_args():
@@ -54,9 +87,11 @@ def infer_data_api(model, work_dir, model_name, dataset, index_set=None, api_npr
             struct = model.build_prompt(item, dataset=dataset_name)
         else:
             struct = dataset.build_prompt(item)
+        if is_blind_mode():
+            struct = strip_visual_content(struct)
         structs.append(struct)
 
-    out_file = f'{work_dir}/{model_name}_{dataset_name}_checkpoint.pkl'
+    out_file = f'{work_dir}/{model_name}_{dataset_name}{blind_tag()}_checkpoint.pkl'
 
     # To reuse records in MMBench_V11
     if dataset_name in ['MMBench', 'MMBench_CN']:
@@ -101,7 +136,7 @@ def infer_data_api(model, work_dir, model_name, dataset, index_set=None, api_npr
 def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, api_nproc=4, use_vllm=False,
                retry_failed=True):
     dataset_name = dataset.dataset_name
-    prev_file = f'{work_dir}/{model_name}_{dataset_name}_PREV.pkl'
+    prev_file = f'{work_dir}/{model_name}_{dataset_name}{blind_tag()}_PREV.pkl'
     res = load(prev_file) if osp.exists(prev_file) else {}
     if osp.exists(out_file):
         res.update(load(out_file))
@@ -176,6 +211,9 @@ def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, ap
         else:
             struct = dataset.build_prompt(data.iloc[i])
 
+        if is_blind_mode():
+            struct = strip_visual_content(struct)
+
         # If `SKIP_ERR` flag is set, the model will skip the generation if error is encountered
         if os.environ.get('SKIP_ERR', False) == '1':
             FAIL_MSG = 'Failed to obtain answer'
@@ -215,7 +253,7 @@ def infer_data_job(
     # 使用环境变量控制的文件格式
     result_file = get_pred_file_path(work_dir, model_name, dataset_name, use_env_format=True)
 
-    prev_file = f'{work_dir}/{model_name}_{dataset_name}_PREV.pkl'
+    prev_file = f'{work_dir}/{model_name}_{dataset_name}{blind_tag()}_PREV.pkl'
     if osp.exists(result_file):
         if rank == 0:
             data = load(result_file)
@@ -226,7 +264,7 @@ def infer_data_job(
         if world_size > 1:
             dist.barrier()
 
-    tmpl = osp.join(work_dir, '{}' + f'{world_size}_{dataset_name}.pkl')
+    tmpl = osp.join(work_dir, '{}' + f'{world_size}_{dataset_name}{blind_tag()}.pkl')
     out_file = tmpl.format(rank)
 
     model = infer_data(
@@ -286,7 +324,7 @@ def infer_data_job(
         for i in range(world_size):
             os.remove(tmpl.format(i))
         # Clean up API checkpoint file
-        checkpoint_file = f'{work_dir}/{model_name}_{dataset_name}_checkpoint.pkl'
+        checkpoint_file = f'{work_dir}/{model_name}_{dataset_name}{blind_tag()}_checkpoint.pkl'
         if osp.exists(checkpoint_file):
             os.remove(checkpoint_file)
         # Clean up PREV file

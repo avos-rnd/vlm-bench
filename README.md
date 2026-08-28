@@ -23,17 +23,27 @@ English | [简体中文](/docs/zh-CN/README_zh-CN.md) | [日本語](/docs/ja/REA
 
 **VLMEvalKit** (the python package name is **vlmeval**) is an **open-source evaluation toolkit** of **large vision-language models (LVLMs)**. It enables **one-command evaluation** of LVLMs on various benchmarks, without the heavy workload of data preparation under multiple repositories. In VLMEvalKit, we adopt **generation-based evaluation** for all LVLMs, and provide the evaluation results obtained with both **exact matching** and **LLM-based answer extraction**.
 
-## NeurIPS 2026 Workshop Targets
+## Benchmark Audit (`bench_eval`)
 
-For the current benchmark-audit paper line built around `run.py --mode bench_eval`, the current target workshops are:
+Beyond scoring models, this fork adds a **benchmark-audit layer** that reuses standard
+evaluation artifacts (prediction/eval files) to diagnose the quality of the *benchmark
+itself*: visually independent (text-solvable) questions, likely annotation errors
+(model consensus vs. ground truth), inter-model agreement, answer-position bias, and
+near-duplicate distractors.
 
-- **Primary:** `TAI-Eval` (Sydney)
-- **Primary:** `Can We Trust the Judge?` (Atlanta)
-- **Backup:** `AI for Meta-Science` (Paris)
-- **Backup:** `AI for Science: Verification in the Age of AI Scientists` (Sydney)
-- **Backup:** `Attributing Model Behavior at Scale` (Sydney)
+Quick start (full + blind runs, then the audit):
 
-The working publication plan, repository organization notes, methodological to-do list, novelty hypotheses, research gaps, and open questions are tracked in `/home/runner/work/vlm-bench/vlm-bench/docs/en/NeurIPS2026_Workshop_Readiness.md`.
+```bash
+# 1) full runs (with images)
+python run.py --data MMStar --model InternVL3-8B Ristretto-3B --mode all --reuse
+# 2) blind runs (images stripped, files get a `_blind` suffix)
+python run.py --data MMStar --model InternVL3-8B Ristretto-3B --mode all --reuse --blind
+# 3) audit over the collected artifacts
+python run.py --mode bench_eval --data MMStar --model InternVL3-8B Ristretto-3B --detectors all
+```
+
+See [docs/en/BenchmarkAudit.md](/docs/en/BenchmarkAudit.md) for the full protocol,
+detector taxonomy, output format, and reproducibility notes.
 
 ## Recent Codebase Changes
 - **[2025-09-12]** **Major Update: Improved Handling for Models with Thinking Mode**
