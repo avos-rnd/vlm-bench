@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 """Publication figures for the benchmark-audit paper.
 
-Reads the same saved evaluation artifacts as ``audit_significance.py`` and
-re-derives every plotted quantity with the *same* detector logic (imported
-from that module), so figures and reported numbers cannot drift apart.
+Reads deterministic per-item quantities from the saved evaluation artifacts,
+but takes every published aggregate/statistical value from the canonical JSON
+emitted by ``audit_significance.py``.  In particular, this renderer never
+reruns the permutation null, so figure labels cannot drift from the report.
 
 Produces, into ``--out``:
 
 ``fig_visual_dependency.pdf``
-    (a) per-question full vs blind accuracy, (b) the permutation-null
-    distribution of the text-only share with the observed value marked,
+    (a) per-question full vs blind accuracy, (b) canonical observed and
+    permutation-null mean values with their excess,
     (c) composition of the text-only set (both-wrong vs both-right items).
 ``fig_strata.pdf``
     text-only excess and unanimous consensus-error rate per dataset
@@ -31,9 +32,11 @@ $ python scripts/audit_paper_figures.py \
     --full  outputs/*/T*/InternVL3-8B_MMStar_gpt-4o-mini_result.xlsx ... \
     --blind outputs/*/T*/InternVL3-8B_MMStar_gpt-4o-mini_result_blind.xlsx ... \
     --models InternVL3-8B Ristretto-3B gpt-5-nano \
+    --stats-json audit_preliminary/mmstar_3models_gpt-4o-mini/significance_report.json \
     --out paper/figures
 """
 import argparse
+import json
 import random
 import shutil
 import string
@@ -48,7 +51,7 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from audit_significance import (  # noqa: E402
-    auc, category_of, extract_option, to_share, unanimous_flags,
+    category_of, extract_option,
 )
 
 # ---------------------------------------------------------------- style ----
@@ -146,26 +149,24 @@ def avg(h, ms, i):
     return sum(h[m][i] for m in ms) / len(ms)
 
 
-def null_distribution(fh, bh, ms, items, perms, seed=7):
-    """The full null sample (not just its mean) for the histogram."""
-    rng = random.Random(seed)
-    obs = to_share(fh, bh, ms, items)
-    vals = []
-    for _ in range(perms):
-        p = list(items)
-        rng.shuffle(p)
-        bp = {m: {i: bh[m][p[j]] for j, i in enumerate(items)} for m in ms}
-        c = 0
-        for i in items:
-            if category_of(avg(fh, ms, i),
-                           sum(bp[m][i] for m in ms) / len(ms)) == 'text_only':
-                c += 1
-        vals.append(100.0 * c / len(items))
-    return obs, vals
+def load_stats(path, d):
+    """Load and validate the canonical report before drawing anything."""
+    stats = json.loads(Path(path).read_text(encoding='utf-8'))
+    if stats.get('n_questions') != d['n']:
+        raise SystemExit(
+            f"stats/data size mismatch: {stats.get('n_questions')} != {d['n']}")
+    if stats.get('models') != d['models']:
+        raise SystemExit(
+            f"stats/data model mismatch: {stats.get('models')} != {d['models']}")
+    required = ('text_only_excess', 'strata')
+    missing = [key for key in required if key not in stats]
+    if missing:
+        raise SystemExit(f'canonical JSON is missing keys: {missing}')
+    return stats
 
 
 # -------------------------------------------------------------- figures ----
-def fig_visual_dependency(d, perms, out):
+def fig_visual_dependency(d, stats, out):
     ms, n = d['models'], d['n']
     items = list(range(n))
     fav = [avg(d['fh'], ms, i) for i in items]
@@ -198,25 +199,27 @@ def fig_visual_dependency(d, perms, out):
               handletextpad=.3, columnspacing=.8, markerscale=3.4)
     bare(ax); panel_tag(ax, 'a')
 
-    # (b) permutation null ----------------------------------------------
+    # (b) canonical permutation result ----------------------------------
     ax = axes[1]
-    obs, vals = null_distribution(d['fh'], d['bh'], ms, items, perms)
-    mu = sum(vals) / len(vals)
-    ax.hist(vals, bins=26, color=SAND, alpha=.75, edgecolor='white', linewidth=.3)
-    ax.axvline(obs, color=RED, lw=1.3)
-    ax.annotate(f'observed\n{obs:.1f}%', xy=(obs, ax.get_ylim()[1] * .82),
-                xytext=(-4, 0), textcoords='offset points',
-                ha='right', va='center', fontsize=6.4, color=RED, linespacing=1.15)
-    ax.annotate(f'null mean {mu:.1f}%', xy=(mu, ax.get_ylim()[1] * .32),
-                xytext=(-3, 0), textcoords='offset points', ha='right',
-                va='center', fontsize=6.2, color='#7A5A25')
-    ax.annotate('', xy=(obs, ax.get_ylim()[1] * .55), xytext=(mu, ax.get_ylim()[1] * .55),
-                arrowprops=dict(arrowstyle='<->', color=INK, lw=.7,
-                                shrinkA=0, shrinkB=0))
-    ax.text((obs + mu) / 2, ax.get_ylim()[1] * .60, f'+{obs - mu:.1f} pp',
-            ha='center', va='bottom', fontsize=6.4, fontweight='bold')
-    ax.set_xlabel('text-only share under item-shuffled null (%)')
-    ax.set_ylabel('permutations')
+    canonical = stats['text_only_excess']['all']
+    obs = float(canonical['observed'])
+    mu = float(canonical['null_mean'])
+    excess = float(canonical['excess'])
+    raw_obs = 100.0 * cats.count('text_only') / n
+    if abs(raw_obs - obs) > 0.051:
+        raise SystemExit(f'canonical observed share mismatch: {obs} != {raw_obs}')
+    ax.bar([0, 1], [mu, obs], width=.56, color=[SAND, RED], alpha=.85)
+    for x, value in enumerate((mu, obs)):
+        ax.text(x, value + .35, f'{value:.1f}%', ha='center', fontsize=6.6,
+                fontweight='bold')
+    ax.annotate('', xy=(1, obs - .6), xytext=(0, mu + .6),
+                arrowprops=dict(arrowstyle='->', color=INK, lw=.7))
+    ax.text(.5, max(mu, obs) + 2.1, f'{excess:+.1f} pp', ha='center',
+            fontsize=6.6, fontweight='bold')
+    ax.set_xticks([0, 1]); ax.set_xticklabels(['permutation\nnull mean', 'observed'])
+    ax.tick_params(axis='x', length=0)
+    ax.set_ylabel('zero-gain share (%)')
+    ax.set_ylim(0, max(mu, obs) * 1.28)
     bare(ax); panel_tag(ax, 'b')
 
     # (c) composition of the text-only set --------------------------------
@@ -243,26 +246,19 @@ def fig_visual_dependency(d, perms, out):
     fig.savefig(out / 'fig_visual_dependency.pdf')
     plt.close(fig)
     outline_fonts(out / 'fig_visual_dependency.pdf')
-    return {'observed': obs, 'null_mean': mu, 'excess': obs - mu,
+    return {'observed': obs, 'null_mean': mu, 'excess': excess,
             'text_only_n': len(to_items), 'both_wrong': both_wrong,
             'both_right': both_right, 'mixed': partial,
             'counts': {k: cats.count(k) for k in set(cats)}}
 
 
-def fig_strata(d, column, perms, out):
-    ms, n = d['models'], d['n']
-    col = list(d['ref'][column])
-    strata = sorted({str(c) for c in col})
+def fig_strata(d, stats, column, out):
     rows = []
-    for st in strata:
-        items = [i for i in range(n) if str(col[i]) == st]
-        if len(items) < 30:
-            continue
-        obs, vals = null_distribution(d['fh'], d['bh'], ms, items, perms)
-        mu = sum(vals) / len(vals)
-        unan = unanimous_flags(d['fans'], d['gt'], ms, items)
-        rows.append({'stratum': st, 'n': len(items), 'excess': obs - mu,
-                     'unan': 100.0 * len(unan) / len(items), 'unan_n': len(unan)})
+    for st, value in stats['strata'].items():
+        n = int(value['n'])
+        unan_n = int(value.get('unanimous', 0))
+        rows.append({'stratum': st, 'n': n, 'excess': float(value['excess']),
+                     'unan': 100.0 * unan_n / n, 'unan_n': unan_n})
     rows.sort(key=lambda r: r['excess'])
     labels = [r['stratum'].replace('&', '\\&') if False else r['stratum'] for r in rows]
     y = range(len(rows))
@@ -281,9 +277,9 @@ def fig_strata(d, column, perms, out):
     ax.axvline(0, color=INK, lw=.7)
     ax.set_yticks(list(y)); ax.set_yticklabels(labels, fontsize=6.6)
     ax.tick_params(axis='y', length=0)
-    ax.set_xlabel('text-only excess over null (pp)')
+    ax.set_xlabel('zero-gain excess over null (pp)')
     ax.set_xlim(-3.2, 9.4)
-    bare(ax, left=False); panel_tag(ax, 'a  knowledge-solvable items')
+    bare(ax, left=False); panel_tag(ax, 'a  zero-gain excess')
 
     ax = axes[1]
     for i, r in zip(y, rows):
@@ -292,9 +288,9 @@ def fig_strata(d, column, perms, out):
                 ha='left', fontsize=6.2)
     ax.set_yticks(list(y)); ax.set_yticklabels([])
     ax.tick_params(axis='y', length=0)
-    ax.set_xlabel('unanimous label-error candidates (\\%)'.replace('\\', ''))
+    ax.set_xlabel('unanimous label-conflict candidates (\\%)'.replace('\\', ''))
     ax.set_xlim(0, 18)
-    bare(ax, left=False); panel_tag(ax, 'b  label-error candidates')
+    bare(ax, left=False); panel_tag(ax, 'b  label-conflict candidates')
 
     fig.savefig(out / 'fig_strata.pdf')
     plt.close(fig)
@@ -369,14 +365,17 @@ def fig_robustness(d, out):
             'attribution': {m: (v, u) for m, v, u in attrib}}
 
 
-def fig_binary_format(d, prefix, perms, out):
+def fig_binary_format(d, stats, prefix, out):
     """HallusionBench: the detector does not recover the design labels."""
     ms, n = d['models'], d['n']
     items = list(range(n))
     idx = [str(v) for v in d['ref']['index']]
     lab = [1 if idx[i].startswith(prefix) else 0 for i in items]
     gain = [avg(d['fh'], ms, i) - avg(d['bh'], ms, i) for i in items]
-    a = auc(gain, lab)
+    calibration = stats.get('design_label_auc')
+    if not calibration or calibration.get('prefix') != prefix:
+        raise SystemExit(f'canonical JSON lacks design-label AUC for {prefix!r}')
+    a = float(calibration['auc'])
 
     # ROC points
     pairs = sorted(zip(gain, lab), key=lambda t: -t[0])
@@ -401,10 +400,11 @@ def fig_binary_format(d, prefix, perms, out):
 
     ax = axes[1]
     res = []
-    for name, want in ((f'design {prefix}', 1), ('design VS', 0)):
-        sub = [i for i in items if lab[i] == want]
-        obs, vals = null_distribution(d['fh'], d['bh'], ms, sub, perms)
-        res.append((name, len(sub), obs - sum(vals) / len(vals)))
+    for name, key in ((f'design {prefix}', prefix), ('design VS', 'VS')):
+        value = stats['strata'].get(key)
+        if value is None:
+            raise SystemExit(f'canonical JSON lacks stratum {key!r}')
+        res.append((name, int(value['n']), float(value['excess'])))
     ax.bar(range(len(res)), [r[2] for r in res], width=.5,
            color=[SAND, RED], alpha=.9)
     for x, r in enumerate(res):
@@ -415,7 +415,7 @@ def fig_binary_format(d, prefix, perms, out):
                        linespacing=1.25)
     ax.tick_params(axis='x', length=0)
     ax.tick_params(axis='x', length=0)
-    ax.set_ylabel('text-only excess (pp)')
+    ax.set_ylabel('zero-gain excess (pp)')
     ax.set_ylim(0, max(r[2] for r in res) * 1.3)
     bare(ax); panel_tag(ax, 'b  the one surviving signal')
 
@@ -432,22 +432,24 @@ def main():
     ap.add_argument('--blind', nargs='+', required=True)
     ap.add_argument('--models', nargs='+', required=True)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--stats-json', required=True,
+                    help='canonical significance_report.json; figures never rerun permutations')
     ap.add_argument('--strata-column', default='category')
     ap.add_argument('--design-prefix', default=None)
-    ap.add_argument('--perms', type=int, default=999)
     args = ap.parse_args()
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     d = load(args.full, args.blind, args.models)
+    stats = load_stats(args.stats_json, d)
 
     if args.design_prefix:
         print('binary-format figure:',
-              fig_binary_format(d, args.design_prefix, args.perms, out))
+              fig_binary_format(d, stats, args.design_prefix, out))
         return
-    print('visual dependency:', fig_visual_dependency(d, args.perms, out))
+    print('visual dependency:', fig_visual_dependency(d, stats, out))
     print('robustness:', fig_robustness(d, out))
-    for r in fig_strata(d, args.strata_column, args.perms, out):
+    for r in fig_strata(d, stats, args.strata_column, out):
         print('  stratum', r)
 
 

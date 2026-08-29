@@ -1,5 +1,5 @@
 % =========================================================================
-% Auditing VLM Benchmarks for Free — NeurIPS 2026 Workshop submission
+% Auditing VLM Benchmarks from Existing Evaluation Runs — NeurIPS 2026 Workshop submission
 % (TAE (Trust-AI-Eval), Sydney; deadline Aug 29, 2026 AoE)
 %
 % BUILD: pdflatex -> bibtex -> pdflatex x2, with the official (unmodified)
@@ -48,19 +48,19 @@ Detecting Benchmark Pathologies with Low Additional Overhead}
 
 \begin{abstract}
 Every evaluation run of a vision--language model (VLM) already produces
-per-question artifacts --- predictions, judged correctness, metadata --- that
+per-question artifacts (predictions, judged correctness, metadata) that
 leaderboards reduce to a single score and then discard. We reuse those
 artifacts to audit the benchmark itself, and add an audit layer to
 VLMEvalKit: six detectors that run as post-processing over saved outputs,
-plus one cheap text-only rerun with visual inputs removed, emitting a
-per-question report in a single command. The layer reports what survives a
-null model rather than raw detector counts, attaching to each finding its
-excess over an item-matched permutation null, a confidence interval, and its
-stability across model pools. Auditing MMStar --- a benchmark curated
+plus one additional text-only rerun with visual inputs removed, emitting a
+per-question report in a single command. The layer reports per-question findings together with aggregate audit
+statistics. For the headline quantities, it reports permutation-null excess
+where applicable, interval estimates for proportions, and sensitivity to the
+model pool. Auditing MMStar --- a benchmark curated
 specifically so that the image is indispensable --- with three models, we find
 zero aggregate accuracy gain from the image on 20.2\% of its questions.
 An item-matched permutation null accounts for 17.0\%, leaving a
-$+3.2$\,pp excess (corrected $p=0.001$). This excess is concentrated in the
+$+3.2$\,pp excess (corrected permutation $p=0.001$). This excess is concentrated in the
 mathematics and science categories and is absent from coarse perception;
 we interpret this localization as consistent with, but not proof of,
 knowledge substituting for visual evidence. A second detector flags 134 questions on which every
@@ -81,8 +81,8 @@ reports accompany this submission.
 \label{sec:intro}
 
 MMStar was built by filtering candidate questions so that the image is
-indispensable: items solvable by blind language models were removed by
-construction \citep{mmstar2024}. Run three VLMs on it twice --- once as
+essential: items solvable by blind language models were removed by
+construction \citep{mmstar2024}. Three VLMs run on it twice --- once as
 intended, once with every image stripped from the prompt --- and align the two
 runs question by question. On 303 of 1{,}500 questions (20.2\%) the pool is
 exactly as accurate without the image as with it. Most of that share is
@@ -124,8 +124,8 @@ wrapper paths by removing visual content before generation (Section~\ref{sec:met
   it.} A raw flag count is not interpretable, because part of it is produced
   by marginal accuracies alone. We report instead the excess over an
   item-matched permutation null, with interval estimates, leave-one-model-out
-  ranges and per-category strata, and show that the excess is the
-  pool-stable quantity while the raw share is not
+  ranges and per-category strata, and show that the excess is more
+  pool-stable while the raw share is not
   (Section~\ref{sec:method-stats}).
   \item \textbf{A case study that localizes two distinct audit signals inside
 a curated benchmark.} On MMStar, an excess zero-gain rate and unanimous
@@ -143,7 +143,7 @@ We do not claim to discover these pathologies; blind-solvability and label
 errors in VLM benchmarks are documented at scale by concurrent work
 \citep{datbench2026,visualignorance2026}. Our claim is narrower: these
 checks can run inside the evaluation infrastructure, from artifacts it
-already saves, with uncertainty attached---so that every evaluation run can
+already saves, with uncertainty attached --- so that every evaluation run can
 double as a benchmark audit.
 
 \section{Related work}
@@ -172,9 +172,8 @@ Sections~\ref{sec:res-consensus} and~\ref{sec:limitations}.
 in nine text benchmarks; BenchMarker \citep{benchmarker2026} applies an
 education-inspired rubric with LLM judges to text multiple-choice
 benchmarks; DatBench \citep{datbench2026} audits 33 VLM datasets and
-releases a cleaned suite. Our deliverable differs: not a cleaned dataset and
-not a standalone pipeline, but audit machinery embedded in a mainstream
-toolkit, reusable on any benchmark--model combination from artifacts the
+releases a cleaned suite. Our deliverable differs: audit machinery embedded in a mainstream
+toolkit, reusable on any benchmark-model combination from artifacts the
 toolkit already saves. To our knowledge no such layer exists for VLMEvalKit
 or LMMs-Eval \citep{lmmseval2024}. Redundancy analyses over existing score
 matrices \citep{redundancy2025} share the reuse-the-exhaust spirit for a
@@ -204,7 +203,7 @@ accuracy numbers to audit conclusions.
     \draw[arr] (det) -- (rep);
   \end{tikzpicture}
   \caption{The audit pipeline. Standard evaluation artifacts---full runs
-  plus one cheap text-only blind run---are aligned on dataset question ids
+  plus one additional text-only blind run---are aligned on dataset question ids
   and passed to six detectors; the output is a per-question report with
   permutation-null statistics and a reproducibility manifest (git commit,
   command-line arguments, generation parameters). Only the blind run costs
@@ -253,7 +252,7 @@ exact matching in Section~\ref{sec:res-judge}.
     Detector & Signal & Pathology flagged & Judge-dep. \\
     \midrule
     \texttt{visual\_dependency} & full vs.\ blind accuracy & no-gain-from-image items & yes \\
-    \texttt{consensus\_error} & majority vote vs.\ label & annotation-error candidates & no \\
+    \texttt{consensus\_error} & majority vote vs.\ label & label-conflict candidates & no \\
     \texttt{fleiss\_kappa\_agreement} & inter-model $\kappa$ & unstable / ambiguous items & no \\
     \texttt{correctness\_agreement} & judged-correctness profile & difficulty / discrimination & yes \\
     \texttt{answer\_options\_distribution} & label-position histogram & position bias & no \\
@@ -280,7 +279,7 @@ non-gold option), \emph{high} (all models disagree with the gold label),
 \subsection{Audit statistics: report the excess, not the share}
 \label{sec:method-stats}
 
-A raw text-only share is easy to over-read. Even if blind answers were drawn
+A raw zero-gain share is easy to over-read. Even if blind answers were drawn
 independently of the items, some questions would tie full-run accuracy by
 chance, and that baseline moves with the pool's marginal accuracy---across
 our two- and three-model pools the raw share swings by 14.2\,pp. The layer
@@ -294,8 +293,7 @@ reportable value is $p=0.001$. The same module attaches Wilson 95\%
 intervals to headline proportions (item-level uncertainty),
 leave-one-model-out pools (pool sensitivity), a split-half reproducibility
 check, and a stratification by official dataset categories (localization and
-internal replication). All of it is post-processing; no model is queried
-again.
+internal replication). All of it is post-processing without any model use.
 
 \subsection{Evaluation protocol}
 \label{sec:method-protocol}
@@ -307,8 +305,8 @@ yes/no items built around visual illusions and language priors, used here as
 a deliberate out-of-format probe of the detectors themselves.
 
 \textbf{Models.} InternVL3-8B, Ristretto-3B and gpt-5-nano ($n=3$): two open
-models and one API model. This is a case study sized to validate the audit
-machinery, not a leaderboard; leave-one-model-out ranges are reported
+models and one API model. This case study sized to validate the audit
+machinery; leave-one-model-out ranges are reported
 throughout and are wide (Table~\ref{tab:pools}).
 
 \textbf{Scoring.} The judged arm uses \texttt{gpt-4o-mini} as the
@@ -357,14 +355,13 @@ whereas the excess varies by 4.6\,pp.
 
 Two readings of this result must be kept apart (Figure~\ref{fig:vd}c). Of
 the 303 zero-gain questions, 164 are items on which every model is wrong
-both with and without the image---evidence of shared failure, not of
-text-solvability. Only 26 are answered correctly by all three models blind.
+both with and without the image --- evidence of shared failure. 
+Only 26 are answered correctly by all three models blind.
 Our claim is therefore limited to equal model-averaged full and blind
 accuracy for this pool. The excess quantifies how often that equality occurs
 beyond marginal-rate arithmetic; it does not identify which underlying
 mechanism produced it. The modest $+3.2$\,pp excess is also consistent with
-MMStar's curation having removed most, but not necessarily all, non-visual
-shortcuts.
+MMStar's curation having removed most non-visual shortcuts.
 
 \begin{table}[t]
   \caption{Zero-gain share against the permutation null on MMStar (999
@@ -386,7 +383,7 @@ shortcuts.
   \end{tabular}
 \end{table}
 
-\subsection{The two pathologies live in different places}
+\subsection{The two audit signals have different category profiles}
 \label{sec:res-strata}
 
 \begin{figure}[t]
@@ -406,7 +403,7 @@ Stratifying by MMStar's six official categories turns one number into a
 pattern (Figure~\ref{fig:strata}). The zero-gain excess is largest in math
 ($+6.6$\,pp) and science \& technology ($+7.5$\,pp), where non-visual
 knowledge is a plausible explanation. Coarse perception shows no positive
-excess ($-1.7$\,pp). Unanimous label conflicts distribute differently: they peak in the perception categories (11.6\% coarse,
+excess ($-1.7$\,pp). Unanimous label-conflict candidates distribute differently: they peak in the perception categories (11.6\% coarse,
 14.4\% fine-grained) and are lowest in math and reasoning (4.4--6.8\%), with
 science \& technology intermediate (10.4\%). These category profiles show that the detectors are
 not merely renamings of the same signal; they do not by themselves identify
@@ -422,15 +419,15 @@ models in the primary pool and expose this dependence through the
 leave-one-model-out analysis; results should not be extrapolated to pools
 with different refusal policies.
 
-\subsection{Label-error candidates}
+\subsection{Label-conflict candidates}
 \label{sec:res-consensus}
 
 The consensus detector flags 23.9\% of MMStar items at some tier; the tier
 that matters is the unanimous one. On 134 questions (8.9\%, Wilson 95\% CI
 $[7.6, 10.5]$) every parseable model answer is the same option and it is not
 the gold label; on 117 of those all three models answered in parseable form,
-and the remaining 17 rest on two, because the abstention rule excludes rather
-than guesses. On the 1{,}346 items for which all three models produced parseable option
+and on the remaining 17, only two models produced parseable answers because
+abstentions are excluded rather than imputed. On the 1{,}346 items for which all three models produced parseable option
 answers, complete-case Fleiss' $\kappa$ is 0.544 (item-bootstrap 95\% CI
 $[0.517, 0.570]$), indicating moderate agreement beyond that expected from
 the models' marginal answer distributions. Because the excluded 154 items
@@ -472,7 +469,7 @@ Audit claims should not silently inherit an LLM judge
 (Table~\ref{tab:detectors}). For the two that do, we recomputed everything
 under exact letter matching on identical predictions
 (Figure~\ref{fig:robust}a): category shares move by at most 2.1\,pp
-(text-only 19.8\% against 20.2\%; visual-dependent 20.5\% against 22.5\%;
+(zero-gain 19.8\% against 20.2\%; visual-dependent 20.5\% against 22.5\%;
 supplement 53.6\% against 52.3\%; conflicting 6.1\% against 5.0\%), and
 nothing in Sections~\ref{sec:res-textonly}--\ref{sec:res-consensus} changes.
 
@@ -494,18 +491,17 @@ We ran the same audit on HallusionBench \citep{hallusionbench2024}, whose
 951 items are yes/no questions, expecting trouble---and measuring it. With
 two answer options blind guessing sits at 50\%, unanimity is cheap, and the
 multiple-choice consensus machinery does not apply at all: option letters do
-not parse and the exact arm reports abstention everywhere. The text-only
+not parse and the exact arm reports abstention everywhere. The zero-gain
 excess is still large and significant ($+5.4$\,pp over an 18.5\% null,
 $p=0.001$), but the decisive calibration test fails. Ranking items by their
 continuous visual gain recovers HallusionBench's own visual-dependent
 against visual-supplement design labels at AUC 0.49, that is, at chance
 (Appendix~\ref{app:binary}). One directional signal survives and matches the
 benchmark's intent: the excess is approximately 2.2 times larger on design-VS items
-($+7.6$\,pp) than on design-VD items ($+3.4$\,pp). We conclude that the
-current detector suite is calibrated for $k$-way multiple choice and treat
-binary formats as out of scope---a measured boundary rather than a footnote,
-since an audit tool that does not state where it is invalid invites the same
-over-reading it exists to prevent.
+($+7.6$\,pp) than on design-VD items ($+3.4$\,pp). We conclude that the current evidence supports use on the four-option MMStar
+setting evaluated here, whereas binary formats are outside the demonstrated
+scope. This is a measured boundary, not evidence of calibration across all
+$k$-way multiple-choice benchmarks.
 
 \subsection{Auditing the audit}
 \label{sec:res-selfaudit}
@@ -534,9 +530,9 @@ the layer now refuses to do it.
 same-wrong-option agreement---so the detector produces candidates for review
 rather than verdicts, and the leave-one-model-out ranges in
 Table~\ref{tab:pools} show how much three models leave open. (ii)~The
-label-error candidates in this paper are unverified by humans; the precision
+label-conflict candidates in this paper are unverified by humans; the precision
 of the consensus detector is therefore unmeasured, and the 8.9\% figure is a
-candidate rate, not an error rate. (iii)~Unparseable predictions become misses for correctness-based
+candidate rate. (iii)~Unparseable predictions become misses for correctness-based
 categories and abstentions for answer-consensus statistics. Blind
 unparseability reaches 67.5\% for one model, so the measured gain partly
 reflects model-specific refusal policy. (iv)~Equality of model-averaged full
@@ -556,8 +552,7 @@ it.
 \section{Conclusion}
 \label{sec:conclusion}
 
-An evaluation toolkit already stores what a benchmark audit needs. Adding
-An evaluation toolkit already stores most of what a benchmark audit needs.
+An evaluation toolkit already stores what a benchmark audit needs.
 Adding one text-only rerun and a statistics pass turns those artifacts into
 per-item findings with uncertainty attached: on MMStar, a $+3.2$\,pp excess
 zero-gain rate concentrated in knowledge-heavy categories, and 134
@@ -581,8 +576,10 @@ released so that others can do the same.
 \label{app:repro}
 
 The audit consumes only the per-model result files that VLMEvalKit writes
-for a normal evaluation, plus the matching blind-run files. With those in
-place, two commands regenerate all reported statistics and all figures:
+for a normal evaluation, plus the matching blind-run files. For each benchmark, 
+the following two commands regenerate its statistics
+and figures; the HallusionBench invocation additionally passes
+\texttt{--design-prefix VD} to both scripts.
 
 \begin{quote}\small\ttfamily
 python scripts/audit\_significance.py \textbackslash\\
@@ -594,7 +591,7 @@ python scripts/audit\_significance.py \textbackslash\\
 
 \begin{quote}\small\ttfamily
 python scripts/audit\_paper\_figures.py \textbackslash\\
-\hspace*{1em}--full ... --blind ... --models ... --out paper/figures
+\hspace*{1em}--full ... --blind ... --models ... --stats-json ... --out paper/figures
 \end{quote}
 
 The blind artifacts themselves come from a normal evaluation invocation with
@@ -604,13 +601,13 @@ the \texttt{--blind} flag, which is the only step that requires inference:
 python run.py --data MMStar --model <model> --blind
 \end{quote}
 
-The statistics script emits the canonical JSON report from which reported
-numbers should be rendered; the figure script imports the same detector
-logic. Both scripts depend only on \texttt{pandas}/\texttt{openpyxl} (plus
-\texttt{matplotlib} for figures) and do not import the toolkit itself, so an
-audit can be re-run on a machine that cannot host the models. Randomness
-enters through recorded permutation seeds. Input frames are required to
-have unique, matching question ids and consistent gold labels.
+The statistics script emits the canonical JSON report. The figure script
+reads all reported aggregate and stochastic values from that JSON and uses
+the evaluation files only for deterministic per-item panels; it does not
+rerun the permutation null. The scripts depend only on
+\texttt{pandas}/\texttt{openpyxl} (plus \texttt{matplotlib} for figures)
+and do not import the toolkit itself. Randomness enters only when the
+canonical report is generated, through the recorded permutation seed.
 
 \paragraph{Answer extraction (exact arm).} A prediction is mapped to an
 option letter by three ordered rules: a bare letter, possibly punctuated; a
@@ -624,7 +621,7 @@ second, divergent notion of what a model answered.
 permutation of question ids is drawn and applied to the blind hit vectors of
 \emph{all} models simultaneously. This preserves each model's marginal blind
 accuracy and the correlation between models' blind answers, and destroys
-only the per-question pairing between full and blind runs. The text-only
+only the per-question pairing between full and blind runs. The zero-gain
 share is recomputed on each permuted dataset with the identical category
 rule; the reported excess is observed minus null mean, and the one-sided
 $p$-value is $(g{+}1)/(N{+}1)$, where $g$ counts permutations with a share
@@ -632,8 +629,7 @@ at least as large as observed. Stratified nulls repeat the procedure within
 each category. For the split-half check, questions are randomly halved and the excess is
 computed in each half. Across 20 resplits, the median absolute difference
 between half-sample estimates is 1.5\,pp on MMStar and 2.1\,pp on
-HallusionBench; these values are stability diagnostics, not confidence
-intervals.
+HallusionBench; these values do stability diagnostics.
 
 \section{Threshold sensitivity of the visual-dependent share}
 \label{app:sweep}
