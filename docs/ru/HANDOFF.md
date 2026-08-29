@@ -81,14 +81,30 @@ sensitivity»; 6-модельный пул уходит в camera-ready/поster
       Разногласия из `adjudication_worklist.csv` обсудите и зафиксируйте.
 - [ ] **(вечер)** Заполнение `\ph{}` в `paper/main.tex` числами из
       [audit_preliminary/README.md](../../audit_preliminary/README.md) +
-      precision/κ из validation_report. Карта соответствий:
+      precision/κ из validation_report. Карта соответствий
+      (обновлена 28.08 по `significance_report.md` — раздел «Strengthened
+      statistics» в README аудита; пересчёт:
+      `python scripts/audit_significance.py --full ... --blind ... --out ...`):
       - абстракт: `N=6` → **3** (и переписать под «case study»), text_only →
-        20.2%, consensus → 23.9% / 134 unanimous, judge-сдвиг → 8.1% флипов /
-        Jaccard 0.79, precision/κ — из разметки;
+        **20.2% с избытком над пермутационным нулём +3.2 п.п. (p=0.001;
+        по пулам +3.2…+7.7)** — репортить избыток, не сырую долю;
+        consensus → 23.9% / 134 unanimous (Wilson95 [7.6, 10.5]);
+        judge-арм: основные числа — exact matching (20.5/53.6/19.8/6.1),
+        LLM-судья — robustness (8.1% флипов, все от gpt-5-nano; без неё 0);
+        precision/κ — из разметки;
+      - стратификация по 6 категориям MMStar — готовая таблица в
+        significance_report.md (избыток в math +6.6 / sci&tech +7.5,
+        перцепция ≈ 0; unanimous CE — максимум в перцепции 11.6–14.4%,
+        минимум в math/reasoning 4.4–6.8%, sci&tech промежуточно 10.4%) —
+        это второй
+        содержательный результат, добавить в Results;
+      - VD-долю (22.5%) не хедлайнить: порог-свип даёт 22.5→54.8%
+        (строгое/мягкое определение) — в приложение;
       - Table `tab:main`: строка MMStar готова в `paper/figures/tab_main.tex`;
         HallusionBench — см. чекбокс ниже, иначе убрать строку и сузить
         клейм до MMStar;
-      - LOMO-диапазоны и bootstrap-CI: `audit_preliminary/.../stability_report.json`
+      - LOMO-диапазоны и Wilson-CI: таблица пулов в
+        `audit_preliminary/mmstar_3models_gpt-4o-mini/significance_report.md`
         (и честно: «with 3 models LOMO ranges span up to ~13pp — motivating
         larger pools»);
       - Fig scatter: `paper/figures/fig_scatter_mmstar.pdf` уже сгенерирован —
@@ -115,8 +131,16 @@ sensitivity»; 6-модельный пул уходит в camera-ready/поster
 ### Чего НЕ делать в Сценарии A
 
 - Не запускать новые инференсы (не успеют и не нужны для подачи).
-- Не добавлять HallusionBench, если к вечеру дня 1 он не готов.
+- **HallusionBench в основные клеймы не включать** (решено 28.08 по числам):
+  формат «да/нет» ломает детекторы — blind-угадывание 50%, единогласие при
+  двух опциях тривиально, непрерывный visual gain не восстанавливает
+  собственные дизайн-метки VD/VS бенчмарка (AUC 0.49 ≈ случайность; см.
+  `audit_preliminary/hallusionbench_3models_auxmatch/significance_report.md`).
+  Одна строка в Limitations; единственный переносимый сигнал — избыток
+  text_only на дизайн-VS в 2.2 раза выше, чем на дизайн-VD.
 - Не включать композитный «Benchmark Score» и `question_image_relevance`.
+- Не хедлайнить сырые доли категорий без пермутационного нуля и не
+  использовать LLM-судью в основных числах (см. карту выше).
 
 ---
 
