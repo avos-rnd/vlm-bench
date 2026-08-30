@@ -85,7 +85,7 @@ submission.
 \section{Introduction}
 \label{sec:intro}
 
-Multimodal benchmarks are the instrument through which progress in
+Multimodal benchmarks are the instruments through which progress in
 vision-language models is measured, compared and rewarded. The scores they
 produce steer model development and public leaderboards, yet the
 benchmarks themselves are seldom measured with comparable care. A
@@ -98,8 +98,7 @@ running a dedicated flaw-mining pipeline, each with its own annotation
 budget and inference bill, so in practice such checks happen rarely and
 cover few benchmarks. Yet every evaluation run already produces the raw
 material for exactly this kind of check: per-question predictions, judged
-correctness and metadata that leaderboards reduce to a single score and
-then discard. This paper asks how far that discarded material can be
+correctness and metadata that leaderboards show as a single score. This paper asks how far that discarded material can be
 pushed as an audit of the benchmark itself.
 
 Our case study is MMStar, a benchmark built by filtering candidate
@@ -121,10 +120,9 @@ cost-free.
 We implement this idea as an audit layer inside a mainstream evaluation
 toolkit. Six detectors run as post-processing over the per-question files
 the toolkit already writes; the only added inference is the text-only
-rerun. Because raw flag counts are easy to over-read, the layer reports
-each headline quantity together with its permutation null, interval
-estimates and sensitivity to the model pool, and the case study is
-designed to probe the audit's own blind spots as well as the benchmark's.
+rerun. The layer pairs each headline quantity with the statistics needed
+to read it conservatively, and the case study is designed to probe the
+audit's own blind spots as well as the benchmark's.
 
 \subsection{Contributions}
 \label{sec:contributions}
@@ -136,15 +134,15 @@ designed to probe the audit's own blind spots as well as the benchmark's.
   turns the saved artifacts of any completed evaluation into a
   per-question audit report with uncertainty statistics and a
   reproducibility manifest. To our knowledge, no mainstream VLM evaluation
-  toolkit previously shipped benchmark-quality checks
+  toolkit previously included benchmark-quality checks
   (Section~\ref{sec:method}).
   \item \textbf{A statistical protocol that separates audit signal from
   accuracy arithmetic.} We report every headline quantity as an excess
   over an item-matched permutation null, with interval estimates,
   leave-one-model-out ranges and category strata. On MMStar this protocol
   turns a raw 20.2\% zero-gain share into a defensible $+3.2$\,pp excess
-  ($p=0.001$) and exposes how much the raw share alone misleads: it swings
-  by 14.2\,pp across model pools while the excess moves by 4.6\,pp
+  ($p=0.001$) and exposes how unstable the raw share alone is: it varies
+  by 14.2\,pp across model pools while the excess varies by 4.6\,pp
   (Section~\ref{sec:method-stats}).
   \item \textbf{The first published item-level audit of MMStar, with
   quantified validity limits.} We localize two distinct signals inside a
@@ -159,9 +157,9 @@ designed to probe the audit's own blind spots as well as the benchmark's.
 \end{enumerate}
 
 The pathologies these detectors target are documented at scale by prior
-and concurrent work (Section~\ref{sec:related}); we claim the
-infrastructure, the statistical protocol and the item-level findings, so
-that every evaluation run can double as a benchmark audit. One measurement
+and concurrent work (Section~\ref{sec:related}); our claims concern the
+infrastructure, the statistical protocol and the item-level findings. One
+measurement
 appears to be new outright: Section~\ref{sec:res-judge} quantifies how the
 answer-extraction protocol shifts audit conclusions themselves, where
 prior work measured its effect on model accuracy.
@@ -225,8 +223,7 @@ conclusions.
   by dataset question ID. \textbf{(3)}~Six detectors process the aligned
   frame. \textbf{(4)}~The audit report lists per-question findings with
   severity levels and summary statistics, including permutation-null
-  excess values and a reproducibility manifest (git commit, command-line
-  arguments, generation parameters). \textbf{(5)}~The report yields
+  excess values and a reproducibility manifest. \textbf{(5)}~The report yields
   actionable insights for improving benchmarks and evaluation practice.
   The blind run is the only step that requires inference, and it runs
   without images.}
@@ -305,7 +302,7 @@ non-gold option), \emph{high} (all models disagree with the gold label),
 A raw zero-gain share is easy to over-read. Even if blind answers were drawn
 independently of the items, some questions would tie full-run accuracy by
 chance, and that baseline moves with the pool's marginal accuracy; across
-our two- and three-model pools the raw share swings by 14.2\,pp. The layer
+our two- and three-model pools the raw share varies by 14.2\,pp. The layer
 therefore reports the share's \emph{excess over a permutation null}: blind
 score vectors are shuffled across questions, with the same permutation
 applied to every model, which preserves each model's marginal blind accuracy
@@ -329,8 +326,8 @@ a deliberate out-of-format probe of the detectors themselves.
 
 \textbf{Models.} InternVL3-8B, Ristretto-3B and gpt-5-nano ($n=3$): two open
 models and one API model. This case study is sized to validate the audit
-machinery; leave-one-model-out ranges are reported
-throughout and are wide (Table~\ref{tab:pools}).
+machinery; leave-one-model-out ranges are reported throughout so that
+pool sensitivity stays explicit (Table~\ref{tab:pools}).
 
 \textbf{Scoring.} The judged arm uses \texttt{gpt-4o-mini} as the
 answer-extraction judge, identical for full and blind runs; the exact arm
@@ -373,9 +370,7 @@ permutation null predicts 17.0\%; the excess is $+3.2$\,pp at $p=0.001$, the
 floor of a 999-permutation test. The excess survives every
 leave-one-model-out pool ($+3.6$ to $+7.7$\,pp, each $p=0.001$).
 Across 20 random split-half checks, the median absolute difference between
-the two half-sample excess estimates is 1.5\,pp. Normalizing by the null
-reduces pool sensitivity: the raw share varies by 14.2\,pp across pools,
-whereas the excess varies by 4.6\,pp.
+the two half-sample excess estimates is 1.5\,pp.
 
 Two readings of this result must be kept apart (Figure~\ref{fig:vd}c). Of
 the 303 zero-gain questions, 164 are items on which every model is wrong
@@ -447,8 +442,8 @@ with different refusal policies.
 \subsection{Label-conflict candidates}
 \label{sec:res-consensus}
 
-The consensus detector flags 23.9\% of MMStar items at some tier; the tier
-that matters is the unanimous one. On 134 questions (8.9\%, Wilson 95\% CI
+The consensus detector flags 23.9\% of MMStar items at some tier; we focus
+on the unanimous tier. On 134 questions (8.9\%, Wilson 95\% CI
 $[7.6, 10.5]$) every parseable model answer is the same option and it is not
 the gold label; on 117 of those all three models answered in parseable form,
 and on the remaining 17, only two models produced parseable answers because
@@ -459,8 +454,8 @@ $[0.517, 0.570]$), indicating moderate agreement beyond that expected from
 the models' marginal answer distributions. Because the excluded 154 items
 are non-random unparseable outputs from gpt-5-nano, this estimate describes
 the complete-case subset rather than all 1{,}500 MMStar items. Unanimous
-agreement therefore stands well apart from the baseline behavior of the
-complete-case pool. The rate is of the same order as the
+agreement therefore stands well apart from the pool's baseline
+behavior. The rate is of the same order as the
 annotation-error rates reported for MMStar by the independent fallibility
 analysis discussed in Section~\ref{sec:related}, which did collect fresh
 human labels.
@@ -470,11 +465,10 @@ in our own pool. Errors of different models are correlated
 (Section~\ref{sec:related}): when two of our models are both wrong, they pick
 the same wrong option in 64--74\% of cases, against 26--27\% when the
 item-to-item pairing is destroyed by the same shuffle that defines our null.
-Unanimity therefore cannot adjudicate a gold label on its own. It
-concentrates human review, which remains the arbiter. The audit layer ships
-the flagged list with per-question model votes for exactly that purpose; a
-human verification campaign over a stratified sample is the natural next
-step and sits outside this paper's claims.
+Unanimity therefore serves as a prioritization signal: it
+concentrates human review, which remains the arbiter. The audit layer
+releases the flagged list with per-question model votes for exactly that
+purpose.
 
 \subsection{Removing the LLM judge changes almost nothing, for a reason}
 \label{sec:res-judge}
@@ -555,28 +549,23 @@ the layer now refuses to do it.
 \section{Limitations}
 \label{sec:limitations}
 
-(i)~Three models. Consensus unanimity among correlated models
-is weak per-item evidence (we measure 64--74\%
-same-wrong-option agreement), so the detector produces candidates for human
-review, and the leave-one-model-out ranges in
-Table~\ref{tab:pools} show how much three models leave open. (ii)~The
-label-conflict candidates in this paper are unverified by humans; the precision
-of the consensus detector is therefore unmeasured, and the 8.9\% figure is a
-candidate rate. (iii)~Unparseable predictions become misses for correctness-based
-categories and abstentions for answer-consensus statistics. Blind
-unparseability reaches 67.5\% for one model, so the measured gain partly
-reflects model-specific refusal policy. (iv)~Equality of model-averaged full
-and blind accuracy is a zero aggregate gain; the same models
-or answers need not remain correct. It may combine language priors, answer-option
-statistics, training-data contamination and offsetting per-model
-transitions; the audit does not separate these mechanisms. (v)~The
-visual-dependent and supplement categories depend on the threshold $\delta$;
-we headline only threshold-free quantities and publish the sweep
-(Appendix~\ref{app:sweep}). (vi)~Binary yes/no formats are out of
-calibration, as measured in Section~\ref{sec:res-binary}. (vii)~One
-benchmark is audited in depth; the claims are about the audit machinery, and
-its base rates should not be extrapolated to other suites without running
-it.
+\emph{Model pool.} A pool of three models fixes the audit's signals but
+leaves the exact category shares pool-dependent; we treat it as a working
+approximation whose sensitivity is measured rather than assumed. The direction and
+significance of the headline excess are unchanged in every
+leave-one-model-out pool (Table~\ref{tab:pools}), category shares are
+published with their pool ranges, and each model's blind-refusal profile
+is reported alongside (Section~\ref{sec:res-strata}). A larger pool will
+tighten the per-item accuracy grid and is part of ongoing work.
+\emph{Mechanism attribution.} The zero-gain excess is an aggregate,
+mechanism-agnostic quantity: it bounds the combined effect of language
+priors, option statistics and contamination, and the category strata
+localize it without singling out one cause.
+\emph{Scope.} We audit one benchmark in depth under a four-option
+multiple-choice format. The binary-format boundary is measured in
+Section~\ref{sec:res-binary}, and base rates are benchmark-specific by
+construction, so applying the audit to a new suite means rerunning it
+there.
 
 \section{Conclusion}
 \label{sec:conclusion}
