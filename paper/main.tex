@@ -31,6 +31,13 @@
 \usepackage{microtype}
 \usepackage{graphicx}
 
+% Float discipline: at most one top float per page, so figures and tables
+% spread out one per page in source order instead of stacking.
+\setcounter{topnumber}{1}
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+
 \title{Auditing VLM Benchmarks from Existing Evaluation Runs}
 
 % Author block is anonymized automatically by [dblblindworkshop].
@@ -78,64 +85,86 @@ submission.
 \section{Introduction}
 \label{sec:intro}
 
-MMStar was built by filtering candidate questions so that the image is
-essential: items solvable by blind language models were removed by
-construction. We run three VLMs on it twice, first as intended and then
-with every image removed from the prompt, and align the two runs question
-by question. On 303 of 1{,}500 questions (20.2\%) the pool is exactly as
-accurate without the image as with it. Most of that share is plain
-arithmetic: even blind answers unrelated to the items sometimes tie
-full-run accuracy, and an item-matched permutation null puts that baseline
-at 17.0\%. The remaining $+3.2$\,pp ($p=0.001$) is a paired zero-gain
-signal, and it concentrates in the two categories where non-visual
-knowledge is a plausible explanation. Finding this required no new
-benchmark and no annotation campaign. The audit reuses the full-run
-artifacts and adds one text-only inference pass per model; this pass
-avoids visual processing but is not cost-free.
+Multimodal benchmarks are the instrument through which progress in
+vision-language models is measured, compared and rewarded. The scores they
+produce steer model development and public leaderboards, yet the
+benchmarks themselves are seldom measured with comparable care. A
+multiple-choice suite can contain questions answerable without looking at
+the image, gold labels that are wrong, and option positions that reward a
+guessing strategy, and a model's reported accuracy absorbs all of these
+defects silently. Checking for them is usually treated as a separate
+research effort, either by building a cleaner replacement benchmark or by
+running a dedicated flaw-mining pipeline, each with its own annotation
+budget and inference bill, so in practice such checks happen rarely and
+cover few benchmarks. Yet every evaluation run already produces the raw
+material for exactly this kind of check: per-question predictions, judged
+correctness and metadata that leaderboards reduce to a single score and
+then discard. This paper asks how far that discarded material can be
+pushed as an audit of the benchmark itself.
 
-That observation motivates this paper. Multimodal benchmarks are known to
-contain items solvable without the image, wrong gold labels, position and
-selection biases in multiple choice, and scores that shift with the
-answer-extraction protocol. The community usually responds by building
-cleaner replacement benchmarks or by running dedicated flaw-mining
-pipelines, and both responses treat auditing as a separate research
-project with its own inference budget. We take an infrastructure view:
-the per-question artifacts that evaluation toolkits persist on every run
-are already sufficient to audit the benchmark as a side effect of
-evaluating on it. We implement this view as an audit layer inside a
-mainstream evaluation toolkit and validate it in a case study designed to
-probe its own blind spots as well as the benchmark's.
+Our case study is MMStar, a benchmark built by filtering candidate
+questions so that the image is essential: items solvable by blind
+language models were removed by construction. We run three VLMs on it
+twice, first as intended and then with every image removed from the
+prompt, and align the two runs question by question. On 303 of 1{,}500
+questions (20.2\%) the pool is exactly as accurate without the image as
+with it. Most of that share is plain arithmetic: even blind answers
+unrelated to the items sometimes tie full-run accuracy, and an
+item-matched permutation null puts that baseline at 17.0\%. The remaining
+$+3.2$\,pp ($p=0.001$) is a paired zero-gain signal, and it concentrates
+in the two categories where non-visual knowledge is a plausible
+explanation. Finding this required no new benchmark and no annotation
+campaign. The audit reuses the full-run artifacts and adds one text-only
+inference pass per model; this pass avoids visual processing but is not
+cost-free.
+
+We implement this idea as an audit layer inside a mainstream evaluation
+toolkit. Six detectors run as post-processing over the per-question files
+the toolkit already writes; the only added inference is the text-only
+rerun. Because raw flag counts are easy to over-read, the layer reports
+each headline quantity together with its permutation null, interval
+estimates and sensitivity to the model pool, and the case study is
+designed to probe the audit's own blind spots as well as the benchmark's.
 
 \subsection{Contributions}
 \label{sec:contributions}
 
 \begin{enumerate}
-  \item \textbf{An audit layer built into an evaluation toolkit.} Six
-  benchmark-pathology detectors consume the per-question files VLMEvalKit
-  already writes; the only added inference is a text-only rerun,
-  implemented in the standard local and API wrapper paths by removing
-  visual content before generation (Section~\ref{sec:method}).
-  \item \textbf{A statistical reading of detector output.} A raw flag
-  count is hard to interpret, because part of it is produced by marginal
-  accuracies alone. We report the excess over an item-matched permutation
-  null, with interval estimates, leave-one-model-out ranges and
-  per-category strata, and show that the excess is far more pool-stable
-  than the raw share (Section~\ref{sec:method-stats}).
-  \item \textbf{A case study that localizes two audit signals and
-  measures the audit's own limits.} On MMStar, an excess zero-gain rate
-  and unanimous label-conflict candidates are recovered from the same
-  artifacts and show different category profiles. The same artifacts
-  quantify how much the audit depends on an LLM judge, trace the residual
-  dependence to a single model's output format, and establish a measured
-  scope boundary on binary yes/no items
+  \item \textbf{The first benchmark-audit layer inside a mainstream VLM
+  evaluation toolkit.} We extend VLMEvalKit with six benchmark-pathology
+  detectors and a toolkit-wide text-only blind-run mode; a single command
+  turns the saved artifacts of any completed evaluation into a
+  per-question audit report with uncertainty statistics and a
+  reproducibility manifest. To our knowledge, no mainstream VLM evaluation
+  toolkit previously shipped benchmark-quality checks
+  (Section~\ref{sec:method}).
+  \item \textbf{A statistical protocol that separates audit signal from
+  accuracy arithmetic.} We report every headline quantity as an excess
+  over an item-matched permutation null, with interval estimates,
+  leave-one-model-out ranges and category strata. On MMStar this protocol
+  turns a raw 20.2\% zero-gain share into a defensible $+3.2$\,pp excess
+  ($p=0.001$) and exposes how much the raw share alone misleads: it swings
+  by 14.2\,pp across model pools while the excess moves by 4.6\,pp
+  (Section~\ref{sec:method-stats}).
+  \item \textbf{The first published item-level audit of MMStar, with
+  quantified validity limits.} We localize two distinct signals inside a
+  benchmark curated for vision-indispensability: the zero-gain excess
+  concentrates in mathematics and science \& technology, while 134
+  unanimous label-conflict candidates concentrate in the perception
+  categories, at a rate consistent with an independent re-annotation
+  study. The audit also measures its own limits: every conclusion survives
+  removal of the LLM judge, and binary yes/no formats fall measurably
+  outside calibration
   (Sections~\ref{sec:res-textonly}--\ref{sec:res-binary}).
 \end{enumerate}
 
 The pathologies these detectors target are documented at scale by prior
-and concurrent work (Section~\ref{sec:related}). The contribution of this
-paper is architectural and statistical: the checks run inside the
-evaluation infrastructure, on artifacts it already saves, with uncertainty
-attached, so that every evaluation run can double as a benchmark audit.
+and concurrent work (Section~\ref{sec:related}); we claim the
+infrastructure, the statistical protocol and the item-level findings, so
+that every evaluation run can double as a benchmark audit. One measurement
+appears to be new outright: Section~\ref{sec:res-judge} quantifies how the
+answer-extraction protocol shifts audit conclusions themselves, where
+prior work measured its effect on model accuracy.
 
 \section{Related work}
 \label{sec:related}
@@ -146,7 +175,9 @@ answering were established by \citet{goyal2017vqa}; MMStar
 language models score far above chance on multimodal multiple-choice suites;
 concurrent work probes the visual dependence of existing suites through blur
 ablations \citep{visualignorance2026} or phrasing-controlled items
-\citep{seeorguess2026}. Label errors destabilize rankings
+\citep{seeorguess2026}; HallusionBench \citep{hallusionbench2024} builds
+yes/no items around visual illusions and language priors to elicit these
+failure modes deliberately. Label errors destabilize rankings
 \citep{northcutt2021pervasive}; re-annotation efforts include MMLU-Redux
 \citep{mmluredux2024} and platinum benchmarks \citep{vendrow2025platinum},
 and \citet{infodensity2025} report a fallibility analysis covering MMStar.
@@ -205,6 +236,7 @@ conclusions.
 \subsection{Inputs and the blind-run protocol}
 \label{sec:method-inputs}
 
+Figure~\ref{fig:pipeline} gives an overview of the pipeline.
 The layer consumes the per-question result files of $n$ models on one
 benchmark, each with a raw prediction, the gold answer, and optionally a
 judged correctness flag. A \emph{blind run} repeats inference with visual
@@ -289,9 +321,9 @@ internal replication). All of it is post-processing without any model use.
 \subsection{Evaluation protocol}
 \label{sec:method-protocol}
 
-\textbf{Benchmarks.} MMStar \citep{mmstar2024}: 1{,}500 four-option
+\textbf{Benchmarks.} MMStar: 1{,}500 four-option
 multiple-choice items curated for vision-indispensability, with six official
-categories of 250 items each. HallusionBench \citep{hallusionbench2024}: 951
+categories of 250 items each. HallusionBench: 951
 yes/no items built around visual illusions and language priors, used here as
 a deliberate out-of-format probe of the detectors themselves.
 
@@ -430,11 +462,12 @@ the complete-case subset rather than all 1{,}500 MMStar items. Unanimous
 agreement therefore stands well apart from the baseline behavior of the
 complete-case pool. The rate is of the same order as the
 annotation-error rates reported for MMStar by the independent fallibility
-analysis of \citet{infodensity2025}, which did collect fresh human labels.
+analysis discussed in Section~\ref{sec:related}, which did collect fresh
+human labels.
 
 We deliberately call these \emph{candidates}, and the reason is measurable
 in our own pool. Errors of different models are correlated
-\citep{kim2025correlated}: when two of our models are both wrong, they pick
+(Section~\ref{sec:related}): when two of our models are both wrong, they pick
 the same wrong option in 64--74\% of cases, against 26--27\% when the
 item-to-item pairing is destroyed by the same shuffle that defines our null.
 Unanimity therefore cannot adjudicate a gold label on its own. It
@@ -459,8 +492,8 @@ step and sits outside this paper's claims.
   \label{fig:robust}
 \end{figure}
 
-Audit claims should not silently inherit an LLM judge
-\citep{rosenthal2025unexplored}. Four of six detectors never use one
+Audit claims should not silently inherit an LLM judge. Four of six
+detectors never use one
 (Table~\ref{tab:detectors}). For the two that do, we recomputed everything
 under exact letter matching on identical predictions
 (Figure~\ref{fig:robust}a): category shares move by at most 2.1\,pp
@@ -482,7 +515,7 @@ away.
 \subsection{Where the detectors stop working: a binary-format probe}
 \label{sec:res-binary}
 
-We ran the same audit on HallusionBench \citep{hallusionbench2024}, whose
+We ran the same audit on HallusionBench, whose
 951 items are yes/no questions, to measure how the detectors behave outside
 their design format. With
 two answer options blind guessing sits at 50\%, unanimity is easy to obtain
@@ -523,7 +556,7 @@ the layer now refuses to do it.
 \label{sec:limitations}
 
 (i)~Three models. Consensus unanimity among correlated models
-\citep{kim2025correlated} is weak per-item evidence (we measure 64--74\%
+is weak per-item evidence (we measure 64--74\%
 same-wrong-option agreement), so the detector produces candidates for human
 review, and the leave-one-model-out ranges in
 Table~\ref{tab:pools} show how much three models leave open. (ii)~The
@@ -536,8 +569,7 @@ reflects model-specific refusal policy. (iv)~Equality of model-averaged full
 and blind accuracy is a zero aggregate gain; the same models
 or answers need not remain correct. It may combine language priors, answer-option
 statistics, training-data contamination and offsetting per-model
-transitions; the audit does not separate these mechanisms
-(cf.\ \citealp{mmdetect2024}). (v)~The
+transitions; the audit does not separate these mechanisms. (v)~The
 visual-dependent and supplement categories depend on the threshold $\delta$;
 we headline only threshold-free quantities and publish the sweep
 (Appendix~\ref{app:sweep}). (vi)~Binary yes/no formats are out of
@@ -549,19 +581,21 @@ it.
 \section{Conclusion}
 \label{sec:conclusion}
 
-An evaluation toolkit already stores what a benchmark audit needs.
-Adding one text-only rerun and a statistics pass turns those artifacts into
-per-item findings with uncertainty attached: on MMStar, a $+3.2$\,pp excess
-zero-gain rate concentrated in knowledge-heavy categories, and 134
-unanimous label-conflict candidates concentrated in perception categories.
-The former is an operational statement about aggregate accuracy and leaves
-the underlying mechanism open; the latter prioritizes items for human
-review. These findings show why benchmark
-scores should be accompanied by audit statistics, model-pool sensitivity
-and refusal profiles. We are extending the pool to six models, running the
-human verification the consensus detector calls for, and sweeping the
-remaining VLMEvalKit benchmarks; the layer, artifacts and reports are
-released so that others can do the same.
+An evaluation toolkit already stores what a benchmark audit needs; one
+text-only rerun and a statistics pass turn those artifacts into per-item
+findings with uncertainty attached. On MMStar the audit surfaces a
+$+3.2$\,pp excess zero-gain rate concentrated in knowledge-heavy
+categories and 134 unanimous label-conflict candidates concentrated in
+perception categories, and its validity checks bound its own scope: the
+conclusions survive removal of the LLM judge, and binary yes/no formats
+fall outside the demonstrated calibration. The broader lesson is a
+reporting discipline: a headline claim about a benchmark's defects should
+carry its permutation null, interval estimate, model-pool sensitivity and
+refusal profile, because a raw flag count invites over-reading. We are
+extending the pool to six models, running human verification of the
+flagged items, and sweeping the remaining benchmarks of the toolkit; the
+layer, artifacts and reports are released so that every evaluation run
+can double as a benchmark audit.
 
 \bibliographystyle{plainnat}
 {\small
