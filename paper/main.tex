@@ -570,21 +570,27 @@ there.
 \section{Conclusion}
 \label{sec:conclusion}
 
-An evaluation toolkit already stores what a benchmark audit needs; one
-text-only rerun and a statistics pass turn those artifacts into per-item
-findings with uncertainty attached. On MMStar the audit surfaces a
-$+3.2$\,pp excess zero-gain rate concentrated in knowledge-heavy
-categories and 134 unanimous label-conflict candidates concentrated in
-perception categories, and its validity checks bound its own scope: the
-conclusions survive removal of the LLM judge, and binary yes/no formats
-fall outside the demonstrated calibration. The broader lesson is a
-reporting discipline: a headline claim about a benchmark's defects should
-carry its permutation null, interval estimate, model-pool sensitivity and
-refusal profile, because a raw flag count invites over-reading. We are
-extending the pool to six models, running human verification of the
-flagged items, and sweeping the remaining benchmarks of the toolkit; the
-layer, artifacts and reports are released so that every evaluation run
-can double as a benchmark audit.
+In this work we ask how far the artifacts of a completed evaluation can be
+pushed as an audit of the benchmark that produced them. We add an audit
+layer to VLMEvalKit: six detectors that run as post-processing over the
+saved per-question outputs, one text-only rerun, and a statistics module
+that reports each finding as an excess over an item-matched permutation
+null. Auditing MMStar with three models, we measure a zero-gain rate of
+20.2\%, of which $+3.2$\,pp exceeds the null ($p=0.001$) and concentrates
+in the mathematics and science categories, and we flag 134 questions whose
+parseable answers agree on a non-gold option, concentrated instead in the
+perception categories. We also measure where the audit stops working: on a
+binary yes/no benchmark the detectors do not recover the benchmark's own
+design labels. Practitioners read a gap between leaderboard scores as a
+difference in capability; our findings advise caution when that gap is
+narrower than the artifact rates measured on the same benchmark, and they
+suggest reporting any claim about a benchmark's defects together with its
+null, its interval and its model-pool range. Three models fix the
+direction of both signals, and their magnitudes remain pool-dependent; the
+134 candidates stay candidates until human review turns them into a
+measured error rate. We release the audit layer, the prediction artifacts
+and the per-question reports, and invite the community to audit the
+benchmarks it relies on.
 
 \bibliographystyle{plainnat}
 {\small
