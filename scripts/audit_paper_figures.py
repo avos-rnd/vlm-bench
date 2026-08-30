@@ -210,13 +210,19 @@ def fig_visual_dependency(d, stats, out):
         raise SystemExit(f'canonical observed share mismatch: {obs} != {raw_obs}')
     ax.bar([0, 1], [mu, obs], width=.56, color=[SAND, RED], alpha=.85)
     for x, value in enumerate((mu, obs)):
-        ax.text(x, value + .35, f'{value:.1f}%', ha='center', fontsize=6.6,
+        ax.text(x, value + .45, f'{value:.1f}%', ha='center', fontsize=6.6,
                 fontweight='bold')
-    ax.annotate('', xy=(1, obs - .6), xytext=(0, mu + .6),
-                arrowprops=dict(arrowstyle='->', color=INK, lw=.7))
-    ax.text(.5, max(mu, obs) + 2.1, f'{excess:+.1f} pp', ha='center',
-            fontsize=6.6, fontweight='bold')
-    ax.set_xticks([0, 1]); ax.set_xticklabels(['permutation\nnull mean', 'observed'])
+    # dashed null-mean reference line under the observed bar, and a vertical
+    # bracket beside it marking the excess; nothing crosses the bars
+    ax.axhline(mu, color=INK, lw=.6, ls=(0, (3, 2)), alpha=.5, zorder=1)
+    bx = 1.44
+    ax.annotate('', xy=(bx, obs), xytext=(bx, mu),
+                arrowprops=dict(arrowstyle='<->', color=INK, lw=.7,
+                                shrinkA=0, shrinkB=0))
+    ax.text(bx + .16, (mu + obs) / 2, f'{excess:+.1f} pp', ha='center',
+            va='center', fontsize=6.6, fontweight='bold', rotation=90)
+    ax.set_xlim(-.55, 1.9)
+    ax.set_xticks([0, 1]); ax.set_xticklabels(['null\nmean', 'observed'])
     ax.tick_params(axis='x', length=0)
     ax.set_ylabel('zero-gain share (%)')
     ax.set_ylim(0, max(mu, obs) * 1.28)
