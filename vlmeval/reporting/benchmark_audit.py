@@ -1,3 +1,12 @@
+"""Aggregation layer of the benchmark-audit pipeline.
+
+Collects per-question findings emitted by the detectors (JSON reports under
+``<work_dir>/reports/``) into a single machine-readable summary
+(``aggregated_findings.json``) and a human-readable markdown digest
+(``benchmark_audit_report.md``). Findings are grouped by detector, severity
+and question id, so that a benchmark maintainer can triage the most
+suspicious questions first.
+"""
 from pathlib import Path
 import json
 from collections import defaultdict, Counter
@@ -5,14 +14,39 @@ from typing import Any, Dict, List, Tuple
 
 
 class BenchmarkAuditReportGenerator:
-    """Aggregate detector findings into aggregated_findings.json and a human-readable markdown report.
+    """Aggregate detector findings into audit artifacts.
 
-    Usage:
-        gen = BenchmarkAuditReportGenerator()
-        gen.generate(out_dir)
+    Examples
+    --------
+    >>> gen = BenchmarkAuditReportGenerator()
+    >>> gen.generate('outputs')  # doctest: +SKIP
+    {'aggregated_path': 'outputs/reports/aggregated_findings.json',
+     'markdown_path': 'outputs/reports/benchmark_audit_report.md'}
     """
 
     def generate(self, out_dir: str) -> Dict[str, Any]:
+        """Aggregate all detector findings found under ``out_dir/reports``.
+
+        Every JSON file that contains a top-level ``findings`` list (or
+        ``full``/``blind`` sub-reports with such lists) contributes its
+        findings; per-question list files are skipped.
+
+        Parameters
+        ----------
+        out_dir : str
+            Audit work directory (the parent of ``reports/``).
+
+        Returns
+        -------
+        dict
+            Paths of the generated artifacts:
+            ``{'aggregated_path': ..., 'markdown_path': ...}``.
+
+        Raises
+        ------
+        FileNotFoundError
+            If ``<out_dir>/reports`` does not exist.
+        """
         out = Path(out_dir)
         rpt_dir = out / 'reports'
         if not rpt_dir.exists():

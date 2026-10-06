@@ -1,3 +1,12 @@
+"""Answer-position balance of multiple-choice datasets.
+
+This detector inspects only the dataset annotations (no model results): it
+counts how often each option position (A/B/C/...) is the correct answer and
+quantifies the deviation from a uniform distribution with a normalized
+imbalance score, a chi-square statistic, and the KL divergence from
+uniform. Findings are dataset-level (``question_id`` is None) since
+position bias is a property of the benchmark as a whole.
+"""
 from typing import Dict, Any
 import math
 import json
@@ -7,13 +16,52 @@ from datetime import datetime
 
 
 class AnswerOptionsDistributionDetector(BaseDetector):
-    NAME = "answer_options_distribution"
-    DESCRIPTION = (
-        "Detect answer-position distribution bias in multiple-choice datasets."
-    )
+    """Detect answer-position bias in MCQ ground-truth annotations.
+
+    The correct-answer position is resolved from the dataset frame
+    (``options`` list or single-letter columns plus an ``answer``-like
+    column) and aggregated over all questions. The imbalance score is the
+    maximum absolute deviation from the uniform probability, normalized to
+    ``[0, 1]``. Severity bands:
+
+    - ``score <= 0.05`` — approximately balanced, no finding;
+    - ``0.05 < score <= 0.2`` — moderate imbalance, ``warning`` finding;
+    - ``score > 0.2`` — strong imbalance, ``critical`` finding.
+
+    Notes
+    -----
+    Findings carry ``question_id = None`` because the pathology is a
+    dataset-level property, not attributable to individual questions.
+    Questions whose answer cannot be resolved to an option position are
+    silently excluded from the counts.
+    """
+
+    NAME = 'answer_options_distribution'
+    DESCRIPTION = 'Detect answer-position distribution bias in multiple-choice datasets.'
     DEFAULT_CONFIG = {}
 
     def analyze(self, context, **kwargs) -> Dict[str, Any]:
+        """Compute the answer-position distribution report for the dataset.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs; only ``context.dataset`` is used. A
+            ``data`` DataFrame is preferred; an iterable of dict/objects
+            with ``options`` and answer attributes is the fallback.
+        **kwargs
+            Unused; accepted for interface compatibility.
+
+        Returns
+        -------
+        dict
+            Report with per-position ``distribution``, ``deviations``,
+            imbalance ``score``, ``chi2``, ``kl_divergence``,
+            ``recommendation``, ``summary`` and dataset-level
+            ``findings``. When no MCQ annotation can be parsed, a stub
+            report with ``num_samples = 0`` and ``score = None`` is
+            returned instead of raising.
+        """
         # This method now accepts an AnalysisContext as described in FIXES.md.
         dataset = getattr(context, "dataset", None)
         dataset_name = getattr(context, "dataset_name", None)

@@ -1,3 +1,12 @@
+"""Inter-model agreement on judged correctness via Fleiss' kappa.
+
+This detector measures whether a panel of models tends to succeed and fail
+on the same questions. For every aligned question it collects the binary
+correctness label (correct/incorrect) of each model, computes Fleiss' kappa
+over the two-category vote matrix, and classifies each question by its
+outcome consensus (all correct / all incorrect / majority / split). Findings
+are keyed by the dataset-level ``index`` value.
+"""
 from typing import Dict, Any, List, Tuple
 from collections import Counter
 from .base_detector import BaseDetector, DetectorInputError, AnalysisContext
@@ -11,8 +20,33 @@ logger = get_logger(__name__)
 
 
 class CorrectnessAgreementDetector(BaseDetector):
-    NAME = "correctness_agreement"
-    DESCRIPTION = "Measure inter-model agreement on correctness (correct/incorrect) using Fleiss' Kappa."
+    """Measure inter-model agreement on correctness labels with Fleiss' kappa.
+
+    Per-model correctness is read from the evaluated result frames (``hit``
+    and equivalent columns, with a prediction-vs-answer comparison as
+    fallback), so the statistic is judge-mediated. Each question receives a
+    consensus category:
+
+    - ``all_correct`` — every model is correct (``easy`` difficulty signal);
+    - ``all_incorrect`` — every model is incorrect (``hard``; emitted as a
+      ``critical`` finding — a candidate label error or flawed question);
+    - ``majority_correct`` / ``majority_incorrect`` — a strict majority on
+      one side (``medium``);
+    - ``split`` — an exact tie (``medium``; emitted as a ``warning``
+      finding).
+
+    In ``full_vs_blind`` mode the same statistics are additionally computed
+    on the blind frames and a full/blind delta is attached.
+
+    Notes
+    -----
+    Because correctness comes from the evaluation stage, errors in judging
+    or answer extraction propagate into this detector; compare with the
+    judge-free :class:`FleissKappaAgreementDetector` when in doubt.
+    """
+
+    NAME = 'correctness_agreement'
+    DESCRIPTION = 'Measure inter-model agreement on correctness (correct/incorrect) using Fleiss\' Kappa.'
     DEFAULT_CONFIG = {
         "low_agreement_threshold": None,
     }
@@ -20,6 +54,21 @@ class CorrectnessAgreementDetector(BaseDetector):
     SUPPORTS_COMPARISON = True
 
     def _fleiss_kappa(self, matrix: List[List[int]]) -> float:
+        """Compute Fleiss' kappa for a subjects-by-categories count matrix.
+
+        Parameters
+        ----------
+        matrix : list of list of int
+            Vote matrix: rows are subjects (questions), columns are the
+            two correctness categories, entries are rater counts. The
+            rater count is taken from the first row.
+
+        Returns
+        -------
+        float
+            Fleiss' kappa in ``[-1, 1]``; ``nan`` when the matrix is
+            empty, has fewer than two raters, or expected agreement is 1.
+        """
         if not matrix:
             return float("nan")
         N = len(matrix)
@@ -80,11 +129,31 @@ class CorrectnessAgreementDetector(BaseDetector):
             "accuracy_blind": float(acc_blind),
         }
 
-    def _extract_correctness_by_model(
-        self, context: AnalysisContext
-    ) -> Tuple[Dict[str, List[int]], List[str]]:
-        rp = getattr(context, "result_paths", {})
-        loaded = getattr(context, "loaded_results", {})
+    def _extract_correctness_by_model(self, context: AnalysisContext) -> Tuple[Dict[str, List[int]], List[str]]:
+        """Extract per-model binary correctness labels from result frames.
+
+        For each result key the labels are read, in preference order, from
+        an explicit correctness column (``hit``/``correct``/``is_correct``/
+        ``isCorrect``), from an MCQ option comparison of ``prediction`` vs
+        ``answer``, and finally from a normalized string comparison.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs; frames must be aligned (see
+            :func:`base_detector.align_results`).
+
+        Returns
+        -------
+        correctness_by_model : dict of str to (list of int or None)
+            For each result key, one label per aligned row: 1 (correct),
+            0 (incorrect) or None (undecidable). The whole entry is None
+            when the frame is unusable.
+        model_keys : list of str
+            Ordered result keys, matching ``context.result_paths``.
+        """
+        rp = getattr(context, 'result_paths', {})
+        loaded = getattr(context, 'loaded_results', {})
 
         model_keys = list(rp.keys())
         correctness_by_model = {}
@@ -174,15 +243,65 @@ class CorrectnessAgreementDetector(BaseDetector):
         return correctness_by_model, model_keys
 
     def analyze(self, context: AnalysisContext, **kwargs) -> Dict[str, Any]:
+        """Compute correctness-agreement reports for full (and blind) runs.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs with at least two models. In
+            ``full_vs_blind`` mode a second report is computed on the
+            blind frames and a full/blind delta is attached.
+        **kwargs
+            Unused; accepted for interface compatibility.
+
+        Returns
+        -------
+        dict
+            Either a single report (``full_only`` mode) with
+            ``correctness_fleiss_kappa``, ``solver_consensus_percent``,
+            ``question_outcome_distribution``, ``difficulty_profile``,
+            ``summary`` and per-question ``findings`` (dataset-level
+            ``question_id``), or ``{'full': ..., 'blind': ...,
+            'delta': ...}``.
+
+        Raises
+        ------
+        DetectorInputError
+            When fewer than two models are provided or no correctness
+            labels can be extracted from any frame.
+        """
         # support computation on a provided context (with loaded_results)
         def _compute_for_ctx(ctx: AnalysisContext):
-            rp_local = getattr(ctx, "result_paths", {})
+            """Compute the correctness-agreement report for one variant context.
+
+            Parameters
+            ----------
+            ctx : AnalysisContext
+                Sub-context whose ``loaded_results`` holds either the full
+                or the blind aligned frames; ``question_ids`` maps
+                positional rows to dataset ``index`` values.
+
+            Returns
+            -------
+            dict
+                Report dict; private ``_all_correct`` / ``_all_incorrect``
+                / ``_split`` / ``_question_details`` keys carry
+                per-question exports with dataset-level question ids.
+
+            Raises
+            ------
+            DetectorInputError
+                When inputs are missing or no question is covered by
+                correctness labels from every model.
+            """
+            rp_local = getattr(ctx, 'result_paths', {})
             if not rp_local or len(rp_local) < 2:
                 raise DetectorInputError(
                     "CorrectnessAgreementDetector requires results from at least two models."
                 )
 
             correctness_by_model, model_keys = self._extract_correctness_by_model(ctx)
+            qids = self._get_question_ids(ctx)
 
             ref = None
             for k in model_keys:
@@ -218,6 +337,9 @@ class CorrectnessAgreementDetector(BaseDetector):
                     qmap[k] = bool(v)
                 if skip:
                     continue
+
+                # dataset-level id of positional row i
+                qid = qids[i] if i < len(qids) else i
 
                 cnt = Counter(vals)
                 num_correct = cnt.get(1, 0)
@@ -327,12 +449,7 @@ class CorrectnessAgreementDetector(BaseDetector):
             return result
 
         # compute full
-        full_ctx = AnalysisContext(
-            dataset=context.dataset,
-            dataset_name=context.dataset_name,
-            result_paths=context.result_paths,
-            loaded_results=context.full_results,
-        )
+        full_ctx = AnalysisContext(dataset=context.dataset, dataset_name=context.dataset_name, result_paths=context.result_paths, loaded_results=context.full_results, question_ids=context.question_ids)
         full_report = _compute_for_ctx(full_ctx)
 
         findings = []
@@ -367,12 +484,7 @@ class CorrectnessAgreementDetector(BaseDetector):
             return full_report
 
         # compute blind
-        blind_ctx = AnalysisContext(
-            dataset=context.dataset,
-            dataset_name=context.dataset_name,
-            result_paths=context.result_paths,
-            loaded_results=context.blind_results,
-        )
+        blind_ctx = AnalysisContext(dataset=context.dataset, dataset_name=context.dataset_name, result_paths=context.result_paths, loaded_results=context.blind_results, question_ids=context.question_ids)
         blind_report = _compute_for_ctx(blind_ctx)
 
         blind_findings = []
@@ -480,6 +592,28 @@ class CorrectnessAgreementDetector(BaseDetector):
         }
 
     def run(self, context: AnalysisContext, out_dir: str = None, **kwargs):
+        """Run the detector and export per-consensus question files.
+
+        In addition to the base JSON report, writes
+        ``reports/<NAME>/all_correct_questions.json``,
+        ``all_incorrect_questions.json``, ``split_questions.json`` and the
+        consolidated ``all_stat.json``, all keyed by dataset-level
+        ``question_id``.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs (see :meth:`analyze`).
+        out_dir : str, optional
+            Audit output directory; exports are skipped when omitted.
+        **kwargs
+            Forwarded to :meth:`analyze`.
+
+        Returns
+        -------
+        dict
+            The detector report returned by :meth:`analyze`.
+        """
         res = super().run(context, out_dir=out_dir, **kwargs)
         if out_dir:
             try:

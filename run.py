@@ -525,8 +525,15 @@ You can launch the evaluation by setting either --data and --model or --config.
     # Benchmark evaluation args
     parser.add_argument('--detectors', type=str, nargs='+', default=['all'],
                         help='List of benchmark detectors to run (default: all)')
+    parser.add_argument('--blind', action='store_true',
+                        help='Blind run: strip all image/video content from prompts before generation. '
+                             'Prediction files receive a `_blind` suffix so that full and blind artifacts '
+                             'coexist in the same eval directory (required by `--mode bench_eval` '
+                             'visual-dependency analysis).')
 
     args = parser.parse_args()
+    if args.blind:
+        os.environ['VLMEVAL_BLIND'] = '1'
     if args.ignore:
         logger.warning('[Deprecated] the `--ignore` flag is deprecated since it is '
                        'the default behavior, use `--keep-failed` to disable it.')
@@ -594,6 +601,16 @@ def run_local_mode(args):
         pred_root.mkdir(parents=True, exist_ok=True)
 
         if RANK == 0:
+            # Record the generation configuration of the model as registered in
+            # vlmeval.config so that every run is traceable to its sampling params.
+            gen_kwargs = {}
+            try:
+                if model_name in supported_VLM and hasattr(supported_VLM[model_name], 'keywords'):
+                    gen_kwargs = {
+                        k: repr(v) for k, v in supported_VLM[model_name].keywords.items()
+                    }
+            except Exception:
+                gen_kwargs = {}
             upsert_run_status(
                 pred_root,
                 eval_id=eval_id,
@@ -608,6 +625,8 @@ def run_local_mode(args):
                 reuse=bool(args.reuse),
                 reuse_aux=args.reuse_aux,
                 model_name=model_name,
+                blind=bool(os.environ.get('VLMEVAL_BLIND', '0') == '1'),
+                generation_kwargs=gen_kwargs,
             )
 
         if use_config:

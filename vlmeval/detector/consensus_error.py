@@ -1,20 +1,40 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from collections import Counter
 from .base_detector import BaseDetector, DetectorInputError, AnalysisContext
 from datetime import datetime
 from pathlib import Path
 import json
-import re
 from vlmeval.smp.file import get_logger
 
 logger = get_logger(__name__)
 
 
 class ConsensusErrorDetector(BaseDetector):
-    NAME = "consensus_error"
-    DESCRIPTION = (
-        "Detect samples where model consensus contradicts benchmark annotation."
-    )
+    """Flag questions where the model consensus contradicts the annotation.
+
+    For every aligned question, the option letters extracted from the raw
+    predictions of all models are compared against the ground-truth label.
+    A question is flagged when a majority (>= ``majority_threshold`` of the
+    models with a parseable answer) agrees on an option that differs from
+    the annotation. Confidence tiers:
+
+    - ``very_high`` — every model gives the same wrong option (a strong
+      label-error candidate);
+    - ``high`` — every model disagrees with the label (possibly on
+      different options);
+    - ``medium`` — a qualified majority disagrees with the label.
+
+    Notes
+    -----
+    Unparseable predictions (sentinel ``'Z'``, see
+    :meth:`BaseDetector._extract_mcq_option`) are excluded from the vote;
+    questions with fewer than two parseable answers are skipped. Ground
+    truth is read from the aligned result frames, never positionally from
+    the dataset file.
+    """
+
+    NAME = 'consensus_error'
+    DESCRIPTION = 'Detect samples where model consensus contradicts benchmark annotation.'
     DEFAULT_CONFIG = {
         "majority_threshold": 0.66,  # default threshold
     }
@@ -41,6 +61,27 @@ class ConsensusErrorDetector(BaseDetector):
         return max(0.0, min(1.0, suspicion))
 
     def analyze(self, context: AnalysisContext, **kwargs) -> Dict[str, Any]:
+        """Compute consensus-error reports for full (and blind) runs.
+
+        Parameters
+        ----------
+        context : AnalysisContext
+            Prepared inputs with at least two models. In
+            ``full_vs_blind`` mode a second report is computed on the blind
+            frames and a full/blind delta is attached.
+
+        Returns
+        -------
+        dict
+            Either a single report (``full_only`` mode) or
+            ``{'full': ..., 'blind': ..., 'delta': ...}``.
+
+        Raises
+        ------
+        DetectorInputError
+            When fewer than two result sets are available or no answers can
+            be extracted.
+        """
         # compute on a provided context
         def _compute_for_ctx(ctx: AnalysisContext):
             rp_local = getattr(ctx, "result_paths", {})
@@ -53,19 +94,8 @@ class ConsensusErrorDetector(BaseDetector):
             model_keys = list(rp_local.keys())
             num_models = len(model_keys)
 
-            dataset = getattr(ctx, "dataset", None)
-            ground_truths = None
-            if dataset is not None and hasattr(dataset, "data"):
-                try:
-                    df = dataset.data
-                    if "answer" in df.columns:
-                        ground_truths = [
-                            self._normalize_answer(x) for x in list(df["answer"])
-                        ]
-                    else:
-                        ground_truths = [None] * len(df)
-                except Exception:
-                    ground_truths = None
+            ground_truths = self._get_ground_truth_answers(ctx)
+            qids = self._get_question_ids(ctx)
 
             answers_by_model, model_keys = self._get_answers_by_model(ctx)
 
@@ -84,6 +114,7 @@ class ConsensusErrorDetector(BaseDetector):
             all_q = []
             counts = {"very_high": 0, "high": 0, "medium": 0}
             for i in range(total_q):
+                qid = qids[i] if i < len(qids) else i
                 model_answers = {}
                 for k in model_keys:
                     arr = answers_by_model.get(k)
@@ -96,12 +127,16 @@ class ConsensusErrorDetector(BaseDetector):
                 if ground_truths is not None and i < len(ground_truths):
                     gt = ground_truths[i]
 
-                vals = [v for v in model_answers.values() if v is not None]
-                if not vals:
+                # 'Z' marks unparseable predictions and must not vote
+                vals = [v for v in model_answers.values() if v is not None and v != 'Z']
+                if len(vals) < 2:
+                    all_q.append({'question_id': qid, 'ground_truth': gt, 'majority_answer': None,
+                                  'majority_support': None, 'answers': model_answers,
+                                  'skipped': 'insufficient_parseable_answers'})
                     continue
                 cnt = Counter(vals)
                 majority_answer, majority_count = cnt.most_common(1)[0]
-                majority_support = majority_count / float(num_models)
+                majority_support = majority_count / float(len(vals))
 
                 disagree_with_gt = gt is not None and majority_answer != gt
                 all_disagree = gt is not None and all((a != gt) for a in vals)
@@ -182,12 +217,7 @@ class ConsensusErrorDetector(BaseDetector):
             return result
 
         # compute full
-        full_ctx = AnalysisContext(
-            dataset=context.dataset,
-            dataset_name=context.dataset_name,
-            result_paths=context.result_paths,
-            loaded_results=context.full_results,
-        )
+        full_ctx = AnalysisContext(dataset=context.dataset, dataset_name=context.dataset_name, result_paths=context.result_paths, loaded_results=context.full_results, question_ids=context.question_ids)
         full_report = _compute_for_ctx(full_ctx)
         # attach summary and findings for full report
         findings = []
@@ -230,12 +260,7 @@ class ConsensusErrorDetector(BaseDetector):
             return fr
 
         # compute blind
-        blind_ctx = AnalysisContext(
-            dataset=context.dataset,
-            dataset_name=context.dataset_name,
-            result_paths=context.result_paths,
-            loaded_results=context.blind_results,
-        )
+        blind_ctx = AnalysisContext(dataset=context.dataset, dataset_name=context.dataset_name, result_paths=context.result_paths, loaded_results=context.blind_results, question_ids=context.question_ids)
         blind_report = _compute_for_ctx(blind_ctx)
 
         # attach summary/findings to blind_report
