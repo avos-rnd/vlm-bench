@@ -90,6 +90,27 @@ Every per-question finding carries the **dataset-level `index`** as
    stability.
 4. **Contamination confound.** High blind accuracy mixes language priors and
    training-data leakage; the audit does not separate them.
+5. **Report the permutation-null excess, not the raw category share.** With a
+   small model pool the raw `text_only` share is dominated by marginal-rate
+   arithmetic and swings with the pool (observed spread ~14 pp across 2–3-model
+   pools on MMStar), while the excess over a block-shuffle null is pool-stable
+   (~4.5 pp spread) and carries a permutation p-value.
+   `scripts/audit_significance.py` computes it (plus Wilson 95% intervals,
+   leave-one-model-out pools, per-stratum breakdown, a VD threshold sweep and
+   split-half stability) from the same eval files — no new inference.
+6. **Prefer the judge-free arm as primary.** `consensus_error` and
+   `fleiss_kappa_agreement` never consult an LLM judge; the visual-dependency
+   categories can be recomputed with exact matching
+   (`scripts/rejudge_exact.py` or the exact arm inside
+   `audit_significance.py`). On the MMStar case study every judge-vs-exact
+   category flip originates from a single model with non-canonical output
+   format — with it excluded, flips are zero. Report LLM-judge numbers as a
+   robustness comparison, not as the primary result.
+7. **Binary (yes/no) benchmarks are out of calibration.** Blind guessing sits
+   at 50%, two-option unanimity is trivial, and on HallusionBench the
+   continuous visual gain does not recover the benchmark's own VD/VS design
+   labels (AUC ≈ 0.49). Restrict headline claims to ≥4-option MCQ until the
+   detectors are re-calibrated for binary formats.
 
 ## 5. Reproducing a published audit
 
