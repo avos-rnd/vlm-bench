@@ -53,12 +53,11 @@ video_models = {
 # Detector registry for benchmark-quality detectors
 detectors = {
     'answer_options_distribution': partial(detector.AnswerOptionsDistributionDetector,),
-    'fleiss_kappa_agreement': partial(detector.FleissKappaAgreementDetector,),
+    # 'fleiss_kappa_agreement': partial(detector.FleissKappaAgreementDetector,),
     'consensus_error': partial(detector.ConsensusErrorDetector,),
     'correctness_agreement': partial(detector.CorrectnessAgreementDetector,),
     'visual_dependency': partial(detector.VisualDependencyDetector,),
     'distractor_similarity': partial(detector.DistractorSimilarityDetector,),
-    'question_image_relevance': partial(detector.QuestionImageRelevanceDetector,),
 }
 
 ungrouped = {

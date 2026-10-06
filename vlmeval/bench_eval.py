@@ -264,7 +264,7 @@ def run_pipeline(args):
 
             try:
                 logger.info(f'Running detector {det_name}...')
-                det.run(context, out_dir=str(Path(args.work_dir)))
+                det_res = det.run(context, out_dir=str(Path(args.work_dir)))
                 detector_outputs[det_name] = {'executed': True}
                 logger.info(f'Finished detector {det_name}...')
             except Exception as e:

@@ -23,6 +23,7 @@ Design rules
    as ``question_id`` (not the positional row number).
 """
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from pathlib import Path
 import json
 import re
@@ -213,10 +214,7 @@ class BaseDetector(ABC):
     SUPPORTS_COMPARISON = False
 
     def __init__(self, context=None, **kwargs):
-        self.config = {
-            **self.DEFAULT_CONFIG,
-            **kwargs
-        }
+        self.config = {**self.DEFAULT_CONFIG, **kwargs}
 
     @abstractmethod
     def analyze(self, context, **kwargs):
@@ -261,9 +259,11 @@ class BaseDetector(ABC):
         result = self.analyze(context=context, **kwargs)
         if out_dir and result is not None:
             try:
-                p = Path(out_dir) / 'reports' / f'{self.NAME}.json'
+                p = Path(out_dir) / "reports" / f"{self.NAME}.json"
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+                p.write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
             except Exception:
                 # best-effort: do not raise from file-writing issues
                 pass
@@ -285,17 +285,17 @@ class BaseDetector(ABC):
         """
         # check full results
         if self.REQUIRES_FULL_RESULTS:
-            if not getattr(context, 'full_results', None):
-                return False, 'Full results are required but not provided.'
+            if not getattr(context, "full_results", None):
+                return False, "Full results are required but not provided."
         # check blind results
         if self.REQUIRES_BLIND_RESULTS:
-            if not getattr(context, 'blind_results', None):
-                return False, 'Blind results are required but not provided.'
+            if not getattr(context, "blind_results", None):
+                return False, "Blind results are required but not provided."
         # check multiple models
         if self.REQUIRES_MULTIPLE_MODELS:
-            rp = getattr(context, 'result_paths', {})
+            rp = getattr(context, "result_paths", {})
             if not rp or len(rp) < 2:
-                return False, 'Detector requires results from multiple models.'
+                return False, "Detector requires results from multiple models."
         return True, None
 
     def _normalize_answer(self, a):
@@ -315,12 +315,13 @@ class BaseDetector(ABC):
             return None
         try:
             import pandas as pd
+
             if pd.isna(a):
                 return None
         except Exception:
             pass
         s = str(a).strip()
-        if s == '':
+        if s == "":
             return None
         return s
 
@@ -354,13 +355,15 @@ class BaseDetector(ABC):
             is a sentinel and must be excluded from agreement statistics or
             reported separately.
         """
+        valid_options = [opt.upper() for opt in valid_options]
         if value is None:
-            return 'Z'
+            return "Z"
 
         try:
             import pandas as pd
+
             if pd.isna(value):
-                return 'Z'
+                return "Z"
         except Exception:
             pass
 
@@ -389,7 +392,7 @@ class BaseDetector(ABC):
             return m.group(1).upper()
 
         # No valid option found
-        return 'Z'
+        return "Z"
 
     def _get_option_letters(self, context: AnalysisContext, frame=None):
         """Determine the set of valid option letters for the dataset.
@@ -479,9 +482,11 @@ class BaseDetector(ABC):
         model_keys : list of str
             Ordered result keys, matching ``context.result_paths``.
         """
-        rp = getattr(context, 'result_paths', {})
-        loaded = getattr(context, 'loaded_results', {})
-
+        dataset = getattr(context, "dataset", {})
+        
+        rp = getattr(context, "result_paths", {})
+        loaded = getattr(context, "loaded_results", {})
+        
         # ordered list of model keys
         model_keys = list(rp.keys())
         answers_by_model = {}
