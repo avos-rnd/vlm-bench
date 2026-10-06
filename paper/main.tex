@@ -156,7 +156,7 @@ audit's own blind spots as well as the benchmark's.
   \item \textbf{The first benchmark-audit layer inside a mainstream VLM
   evaluation toolkit.} We extend VLMEvalKit with six benchmark-pathology
   detectors and a toolkit-wide text-only blind-run mode; a single command
-  turns the saved artifacts of any completed evaluation into a
+  turns saved artifacts from a completed evaluation into a
   per-question audit report with uncertainty statistics and a
   reproducibility manifest. To our knowledge, no mainstream VLM evaluation
   toolkit previously included benchmark-quality checks
@@ -222,7 +222,7 @@ in nine text benchmarks; BenchMarker \citep{benchmarker2026} applies an
 education-inspired rubric with LLM judges to text multiple-choice
 benchmarks; DatBench \citep{datbench2026} audits 33 VLM datasets and
 releases a cleaned suite. Our deliverable differs: audit machinery embedded
-in a mainstream toolkit, reusable on any benchmark-model combination from
+in a mainstream toolkit, reusable across benchmark-model combinations using
 artifacts the toolkit already saves. To our knowledge no such layer exists
 for VLMEvalKit \citep{vlmevalkit2024} or LMMs-Eval \citep{lmmseval2024}.
 Blind-solvability and label errors in VLM benchmarks are documented at
