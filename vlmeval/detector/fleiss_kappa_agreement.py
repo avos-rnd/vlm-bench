@@ -386,6 +386,7 @@ class FleissKappaAgreementDetector(BaseDetector):
                 }
             )
         self._full_findings = findings
+        full_report["findings"] = findings
 
         # if no blind-support or not in comparison mode, return full report
         if not getattr(context, "mode", None) == "full_vs_blind" or not getattr(
@@ -398,7 +399,7 @@ class FleissKappaAgreementDetector(BaseDetector):
         blind_out = _compute_for_ctx(blind_ctx)
         blind_report = blind_out["report"]
 
-        self._blind_q_stats = full_out.get("_q_stats", [])
+        self._blind_q_stats = blind_out.get("_q_stats", [])
 
         delta = {}
         try:
@@ -441,6 +442,7 @@ class FleissKappaAgreementDetector(BaseDetector):
             pass
 
         self._blind_findings = blind_findings
+        blind_report["findings"] = blind_findings
 
         full_section = full_report
         blind_section = blind_report
@@ -512,4 +514,5 @@ class FleissKappaAgreementDetector(BaseDetector):
                 )
             except Exception:
                 logger.exception("Failed to write low_agreement_questions.json")
+                raise
         return result

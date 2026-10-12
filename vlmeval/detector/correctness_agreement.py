@@ -350,11 +350,11 @@ class CorrectnessAgreementDetector(BaseDetector):
 
                 if num_correct == len(model_keys):
                     consensus = "all_correct"
-                    all_correct_ids.append(i)
+                    all_correct_ids.append(qid)
                     difficulty = "easy"
                 elif num_incorrect == len(model_keys):
                     consensus = "all_incorrect"
-                    all_incorrect_ids.append(i)
+                    all_incorrect_ids.append(qid)
                     difficulty = "hard"
                 elif num_correct > num_incorrect:
                     consensus = "majority_correct"
@@ -365,7 +365,7 @@ class CorrectnessAgreementDetector(BaseDetector):
 
                 per_question.append(
                     {
-                        "question_id": i,
+                        "question_id": qid,
                         "correctness": {k: qmap[k] for k in model_keys},
                         "consensus": consensus,
                         "difficulty_signal": difficulty,
@@ -474,13 +474,14 @@ class CorrectnessAgreementDetector(BaseDetector):
                 )
 
         self._full_findings = findings
+        full_report["findings"] = findings
 
         # if no blind or not supported -> return full
         if not getattr(context, "mode", None) == "full_vs_blind" or not getattr(
             self, "SUPPORTS_COMPARISON", False
         ):
             # set instance exports
-            self._question_details = full_report.get("_question_details", [])
+            self._full_question_details = full_report.get("_question_details", [])
             return full_report
 
         # compute blind
@@ -509,6 +510,7 @@ class CorrectnessAgreementDetector(BaseDetector):
                 )
 
         self._blind_findings = blind_findings
+        blind_report["findings"] = blind_findings
 
         full_questions = {q["question_id"]: q for q in full_report["_question_details"]}
 
@@ -651,4 +653,5 @@ class CorrectnessAgreementDetector(BaseDetector):
                 )
             except Exception:
                 logger.exception("Failed to write correctness agreement reports")
+                raise
         return res

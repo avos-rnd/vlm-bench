@@ -215,6 +215,21 @@ class BaseDetector(ABC):
 
     def __init__(self, context=None, **kwargs):
         self.config = {**self.DEFAULT_CONFIG, **kwargs}
+        self._reset_comparison_exports()
+
+    def _reset_comparison_exports(self):
+        # Full-only runs must not reuse blind findings from a previous run.
+        self._blind_findings = []
+        self._blind_all_questions = []
+        self._blind_q_stats = []
+        self._blind_question_details = []
+
+    @staticmethod
+    def merge_findings(full_findings, blind_findings):
+        """Keep findings from both arms and record their origin without mutation."""
+        return [dict(finding, comparison_side=side)
+                for side, findings in (("full", full_findings), ("blind", blind_findings))
+                for finding in findings]
 
     @abstractmethod
     def analyze(self, context, **kwargs):
@@ -233,7 +248,7 @@ class BaseDetector(ABC):
         dict
             JSON-serializable report. Must include ``findings`` (list of
             per-question finding dicts with ``question_id``, ``detector``,
-            ``severity``, ``reason``) and ``summary`` keys for the audit
+            ``severity``, ``reason``) and aggregate statistics for the audit
             aggregation layer.
         """
         raise NotImplementedError()
@@ -256,17 +271,12 @@ class BaseDetector(ABC):
         dict
             The detector report returned by :meth:`analyze`.
         """
+        self._reset_comparison_exports()
         result = self.analyze(context=context, **kwargs)
         if out_dir and result is not None:
-            try:
-                p = Path(out_dir) / "reports" / f"{self.NAME}.json"
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(
-                    json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
-            except Exception:
-                # best-effort: do not raise from file-writing issues
-                pass
+            p = Path(out_dir) / "reports" / f"{self.NAME}.json"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         return result
 
     def can_run(self, context: AnalysisContext):
@@ -355,7 +365,7 @@ class BaseDetector(ABC):
             is a sentinel and must be excluded from agreement statistics or
             reported separately.
         """
-        valid_options = [opt.upper() for opt in valid_options]
+        valid_options = [str(opt).upper() for opt in valid_options] if valid_options is not None else None
         if value is None:
             return "Z"
 

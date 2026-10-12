@@ -161,7 +161,7 @@ class ConsensusErrorDetector(BaseDetector):
                     and majority_support >= threshold
                 ):
                     q = {
-                        "question_id": i,
+                        "question_id": qid,
                         "ground_truth": gt,
                         "majority_answer": majority_answer,
                         "majority_support": majority_support,
@@ -173,7 +173,7 @@ class ConsensusErrorDetector(BaseDetector):
                 else:
                     all_q.append(
                         {
-                            "question_id": i,
+                            "question_id": qid,
                             "ground_truth": gt,
                             "majority_answer": majority_answer if vals else None,
                             "majority_support": majority_support if vals else None,
@@ -199,7 +199,9 @@ class ConsensusErrorDetector(BaseDetector):
                 "detector": self.NAME,
                 "participants": participants,
                 "num_models": num_models,
-                "num_questions": len(flagged),
+                "num_questions": total_q,
+                "num_flagged_questions": flagged_count,
+                "num_skipped_questions": sum(bool(q.get("skipped")) for q in all_q),
                 "consensus_error_rate": consensus_error_rate,
                 "unanimous_consensus_error_rate": (
                     unanimous_count / float(total_q) if total_q > 0 else 0.0
@@ -238,7 +240,6 @@ class ConsensusErrorDetector(BaseDetector):
                         "confidence": q.get("confidence"),
                         "ground_truth": q.get("ground_truth"),
                         "majority_answer": q.get("majority_answer"),
-                        "confidence": q.get("confidence"),
                         "answers": q.get("answers"),
                     },
                 }
@@ -247,6 +248,7 @@ class ConsensusErrorDetector(BaseDetector):
         # store for run()/exports
         self._all_questions = full_report.get("_all_q", [])
         self._full_findings = findings
+        full_report["findings"] = findings
 
         # if no blind or comparison unsupported -> return full (include normalized score)
         if not getattr(context, "mode", None) == "full_vs_blind" or not getattr(
@@ -282,13 +284,13 @@ class ConsensusErrorDetector(BaseDetector):
                         "confidence": q.get("confidence"),
                         "ground_truth": q.get("ground_truth"),
                         "majority_answer": q.get("majority_answer"),
-                        "confidence": q.get("confidence"),
                         "answers": q.get("answers"),
                     },
                 }
             )
         self._blind_all_questions = blind_report.get("_all_q", [])
         self._blind_findings = bfindings
+        blind_report["findings"] = bfindings
 
         full_questions = {q["question_id"]: q for q in self._all_questions}
 
@@ -432,4 +434,5 @@ class ConsensusErrorDetector(BaseDetector):
                 )
             except Exception:
                 logger.exception("Failed to write consensus_errors.json")
+                raise
         return res

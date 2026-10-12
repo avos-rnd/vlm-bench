@@ -317,9 +317,12 @@ class DistractorSimilarityDetector(BaseDetector):
             else:
                 severity = "healthy"
 
+            qid = df.iloc[idx].get("index", idx)
+            if hasattr(qid, "item"):
+                qid = qid.item()
             per_q_reports.append(
                 {
-                    "question_id": idx,
+                    "question_id": qid,
                     "question": (
                         df.get("question", df.get("question_text", "")).iloc[idx]
                         if "question" in df.columns or "question_text" in df.columns
@@ -411,6 +414,7 @@ class DistractorSimilarityDetector(BaseDetector):
                 )
 
         self._findings = findings
+        dataset_report["findings"] = findings
         self._all_stat = per_q_reports
 
         return dataset_report
@@ -457,4 +461,5 @@ class DistractorSimilarityDetector(BaseDetector):
                 )
             except Exception:
                 logger.exception("Failed to write distractor similarity reports")
+                raise
         return res

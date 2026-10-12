@@ -24,17 +24,22 @@ class BenchmarkAuditReportGenerator:
      'markdown_path': 'outputs/reports/benchmark_audit_report.md'}
     """
 
-    def generate(self, out_dir: str) -> Dict[str, Any]:
+    def generate(self, out_dir: str, detector_names=None) -> Dict[str, Any]:
         """Aggregate all detector findings found under ``out_dir/reports``.
 
-        Every JSON file that contains a top-level ``findings`` list (or
+        Each canonical detector report containing a top-level ``findings`` list (or
         ``full``/``blind`` sub-reports with such lists) contributes its
-        findings; per-question list files are skipped.
+        findings. Legacy side exports are used only if the canonical report has no
+        findings. Repeated aggregation never consumes its own output.
 
         Parameters
         ----------
         out_dir : str
             Audit work directory (the parent of ``reports/``).
+
+        detector_names : iterable of str, optional
+            Restrict aggregation to detectors executed in the current run; older
+            reports from skipped or failed detectors are ignored.
 
         Returns
         -------
@@ -52,48 +57,59 @@ class BenchmarkAuditReportGenerator:
         if not rpt_dir.exists():
             raise FileNotFoundError(f"Reports directory not found: {rpt_dir}")
 
-        # --- Collect scores from JSON files that don't contain "_findings" ---
-        scores: List[Tuple[str, float]] = []
-        for p in rpt_dir.rglob('*.json'):
-            if '_findings' not in p.name:  # exclude files with "_findings"
-                try:
-                    data = json.loads(p.read_text(encoding='utf-8'))
-                    if isinstance(data, dict) and 'score' in data:
-                        score_val = data['score']
-                        if isinstance(score_val, (int, float)) and 0.0 <= score_val <= 1.0:
-                            scores.append((p.name, float(score_val)))
-                except Exception:
-                    continue
-
-        # Calculate bench_score as average of all scores
-        bench_score = sum(s for _, s in scores) / len(scores) if scores else None
-
-        # --- Collect findings ---
-        aggregated = {
-            'total_findings': 0,
-            'by_detector': {},
-            'by_severity': {},
-            'questions': {},
-        }
-
-        findings_list = []
-        for p in rpt_dir.rglob('*_findings.json'):
+        # Prefer canonical detector reports. Side exports remain a legacy fallback;
+        # reading both would count the same finding twice. Ignore our own outputs.
+        selected = set(detector_names) if detector_names is not None else None
+        reports = {}
+        for path in sorted(rpt_dir.glob('*.json')):
+            if path.name == 'aggregated_findings.json' or (selected is not None and path.stem not in selected):
+                continue
             try:
-                data = json.loads(p.read_text(encoding='utf-8'))
-            except Exception:
+                data = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
                 continue
             if isinstance(data, dict):
-                if 'findings' in data and isinstance(data.get('findings'), list):
-                    for f in data.get('findings'):
-                        f_rec = dict(f)
-                        findings_list.append(f_rec)
-                else:
-                    for side in ('full', 'blind'):
-                        if side in data and isinstance(data[side], dict) and 'findings' in data[side] and isinstance(data[side].get('findings'), list):
-                            for f in data[side].get('findings'):
-                                f_rec = dict(f)
-                                f_rec.setdefault('comparison_side', side)
-                                findings_list.append(f_rec)
+                reports[path] = data
+
+        scores: List[Tuple[str, float]] = []
+        findings_list = []
+        covered_detectors = set()
+
+        def collect_findings(data):
+            if isinstance(data.get('findings'), list):
+                return [dict(f) for f in data['findings']]
+            findings = []
+            for side in ('full', 'blind'):
+                section = data.get(side)
+                if isinstance(section, dict) and isinstance(section.get('findings'), list):
+                    findings.extend(dict(f, comparison_side=side) for f in section['findings'])
+            return findings
+
+        for path, data in reports.items():
+            score = data.get('score')
+            if isinstance(score, (int, float)) and 0.0 <= score <= 1.0:
+                scores.append((path.name, float(score)))
+            has_findings = isinstance(data.get('findings'), list) or any(
+                isinstance(data.get(side), dict) and isinstance(data[side].get('findings'), list)
+                for side in ('full', 'blind'))
+            if has_findings:
+                covered_detectors.add(data.get('detector', path.stem))
+                findings_list.extend(collect_findings(data))
+
+        for path in sorted(rpt_dir.rglob('*_findings.json')):
+            if path.parent == rpt_dir:
+                continue
+            try:
+                data = json.loads(path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            if (isinstance(data, dict)
+                    and data.get('detector', path.parent.name) not in covered_detectors
+                    and (selected is None or data.get('detector', path.parent.name) in selected)):
+                findings_list.extend(collect_findings(data))
+
+        bench_score = sum(score for _, score in scores) / len(scores) if scores else None
+        aggregated = {'total_findings': 0, 'by_detector': {}, 'by_severity': {}, 'questions': {}}
 
         # Build aggregates
         by_detector = defaultdict(list)
@@ -176,7 +192,10 @@ class BenchmarkAuditReportGenerator:
         md_lines.append('')
 
         md_lines.append('## Notes')
-        md_lines.append('- This report aggregates detector-generated findings. Review findings in `reports/aggregated_findings.json`.')
+        md_lines.append('- Findings are screening signals for review, not verified benchmark defects.')
+        md_lines.append('- Full and blind findings are counted separately and retain their comparison side.')
+        md_lines.append('- Detector scores and their average are heuristic diagnostics, not calibrated quality estimates.')
+        md_lines.append('- Review per-question details in `reports/aggregated_findings.json`.')
 
         md_path = rpt_dir / 'benchmark_audit_report.md'
         md_path.write_text('\n'.join(md_lines), encoding='utf-8')
