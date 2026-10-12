@@ -204,7 +204,6 @@ vlmeval/gemini_tmp.py
 run.sh
 run_g.sh
 tmp/
-InternVL*
 Qwen*
 CongRong*
 Seed1.5*

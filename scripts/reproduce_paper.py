@@ -1,7 +1,8 @@
 """Validate supplied eval files, reproduce paper statistics, and check published headlines.
 
-This driver never performs model inference. The original prediction files must be
-provided separately; it does not reconstruct them from aggregate Markdown reports.
+This driver never performs model inference. It reads the original prediction files
+from the directory supplied with ``--input-dir``; it does not reconstruct them from
+aggregate Markdown reports.
 """
 import argparse
 import hashlib
@@ -24,8 +25,9 @@ def validate_inputs(input_dir, benchmark):
              for side in ('full', 'blind') for model in MODELS]
     missing = [str(path) for path in files if not path.is_file()]
     if missing:
-        raise ValueError('Missing original evaluation files:\n' + '\n'.join(missing)
-                         + '\nSee docs/en/ReproducingPaper.md. Raw predictions are not bundled in arxiv-v1.')
+                raise ValueError('Missing original evaluation files:\n' + '\n'.join(missing)
+                                                 + '\nSee docs/en/ReproducingPaper.md. Raw predictions are expected under paper-inputs/ '
+                                                     '(or the directory supplied with --input-dir).')
     reference = None
     records = []
     for path in files:

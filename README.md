@@ -62,10 +62,10 @@ shows what a detector report looks like. Its counts can include multiple detecto
 and both evaluation arms for the same question; they are not counts of verified defects.
 It predates the release's export fixes and is kept as an archival example.
 
-**Artifact availability:** the source full/blind prediction files are not bundled in
-`arxiv-v1` yet. The manuscript, scripts, figures, and saved Markdown reports are available.
-[Reproduction instructions](docs/en/ReproducingPaper.md) document the required inputs
-and the commands to recompute statistics once those files are supplied.
+**Artifact availability:** the source full/blind prediction files are included under
+`paper-inputs/`. The manuscript, scripts, figures, and saved Markdown reports are also
+available. [Reproduction instructions](docs/en/ReproducingPaper.md) document the input
+layout and commands to recompute the statistics.
 
 ## Quickstart: audit your own evaluation runs
 
