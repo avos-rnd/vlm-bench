@@ -115,7 +115,7 @@ class TestBenchEvalPipeline(unittest.TestCase):
 
     def test_full_vs_blind_pipeline_on_synthetic_artifacts(self):
         import tempfile
-        ids = list(range(12))
+        ids = list(range(10, 130, 10))
         answers = ['A', 'B', 'C', 'D'] * 3
         options = {L: [f'{L}-opt-{i}' for i in ids] for L in 'ABCD'}
         ds_df = pd.DataFrame({'index': ids, 'question': [f'q{i}' for i in ids],
@@ -142,9 +142,8 @@ class TestBenchEvalPipeline(unittest.TestCase):
                 work_dir=str(work), detectors=['all'])
             status = be.run_pipeline(args)
 
-            self.assertTrue(status['visual_dependency']['executed'], status)
-            self.assertTrue(status['consensus_error']['executed'], status)
-            self.assertTrue(status['fleiss_kappa_agreement']['executed'], status)
+            for name in DETECTOR_MODULES:
+                self.assertTrue(status[name]['executed'], status)
 
             manifest = json.loads((work / 'bench_quality_report.json').read_text())
             self.assertEqual(manifest['num_aligned_questions'], 12)
@@ -158,13 +157,40 @@ class TestBenchEvalPipeline(unittest.TestCase):
             self.assertAlmostEqual(dist['visual_dependent'], 10 / 12 * 100, places=3)
 
             ce = json.loads((work / 'reports' / 'consensus_error.json').read_text())
-            flagged = ce['full']['_flagged'] if 'full' in ce else ce['_flagged']
+            flagged = ce['full']['findings'] if 'full' in ce else ce['findings']
             self.assertEqual(len(flagged), 1)
-            self.assertEqual(flagged[0]['question_id'], 0)
-            self.assertEqual(flagged[0]['confidence'], 'very_high')
+            self.assertEqual(flagged[0]['question_id'], 10)
+            self.assertEqual(flagged[0]['metadata']['confidence'], 'very_high')
 
             agg = json.loads((work / 'reports' / 'aggregated_findings.json').read_text())
             self.assertGreater(agg['total_findings'], 0)
+
+            for name in ('consensus_error', 'fleiss_kappa_agreement', 'correctness_agreement'):
+                report_dir = work / 'reports' / name
+                exports = json.loads((report_dir / f'{name}_findings.json').read_text())
+                self.assertTrue(all(f['question_id'] in ids for f in exports['findings']))
+                self.assertTrue(all(f['comparison_side'] in ('full', 'blind') for f in exports['findings']))
+                full_stats = json.loads((report_dir / 'all_full_infer_stat.json').read_text())
+                blind_stats = json.loads((report_dir / 'all_blind_infer_stat.json').read_text())
+                self.assertEqual(len(full_stats), 12)
+                self.assertEqual(len(blind_stats), 1 if name == 'fleiss_kappa_agreement' else 12)
+                self.assertNotEqual(full_stats, blind_stats)
+
+            generator = sys.modules['vlmeval.reporting.benchmark_audit'].BenchmarkAuditReportGenerator()
+            generator.generate(str(work))
+            self.assertEqual(agg, json.loads((work / 'reports' / 'aggregated_findings.json').read_text()))
+
+            # Reuse the pipeline with full-only inputs: blind exports must be empty.
+            for path in work.glob('*/*/*_blind.xlsx'):
+                path.unlink()
+            full_status = be.run_pipeline(args)
+            self.assertFalse(full_status['visual_dependency']['executed'])
+            full_aggregate = json.loads((work / 'reports' / 'aggregated_findings.json').read_text())
+            self.assertNotIn('visual_dependency', full_aggregate['by_detector'])
+            for name in ('consensus_error', 'fleiss_kappa_agreement', 'correctness_agreement'):
+                self.assertTrue(full_status[name]['executed'], full_status)
+                blind_stats = work / 'reports' / name / 'all_blind_infer_stat.json'
+                self.assertEqual(json.loads(blind_stats.read_text()), [])
 
 
 if __name__ == '__main__':

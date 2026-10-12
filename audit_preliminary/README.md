@@ -1,9 +1,18 @@
-# Preliminary audit results (2026-08-28)
+# Archived audit results (2026-08-28)
+
+These are saved development reports for the published [arXiv paper](https://arxiv.org/abs/2610.13548).
+For the current release procedure, use [ReproducingPaper.md](../docs/en/ReproducingPaper.md).
+The original prediction files and the old `results` branch are not bundled in this
+repository yet. The item-finding digest predates the release export fixes; its counts
+are retained as an archival example, not as a freshly rerun release result.
+
+`text_only` is a historical category name for equal pool-averaged full/blind accuracy,
+including all-wrong items. Consensus conflicts remain unverified review candidates.
 
 Produced with the **fixed** audit pipeline (current working tree: index-based
 alignment, judge-free extraction, no ground-truth back-fill, 'Z' abstentions
 excluded) applied to the existing prediction artifacts from the
-`origin/results` branch (MMStar, 3 models: InternVL3-8B, Ristretto-3B,
+historical `origin/results` branch (currently unavailable) (MMStar, 3 models: InternVL3-8B, Ristretto-3B,
 gpt-5-nano-2025-08-07; eval id `T20260611-093811`; judge `gpt-4o-mini`).
 
 ## Headline numbers (3-model pool — preliminary, see caveats)
@@ -15,7 +24,7 @@ gpt-5-nano-2025-08-07; eval id `T20260611-093811`; judge `gpt-4o-mini`).
 | text_only | 20.2% (boot95 [18.2, 22.2]) | 19.8% |
 | conflicting_visual_signal | 5.0% | 6.1% |
 | consensus-error rate (flagged) | 23.9% | see reports |
-| unanimous consensus errors | 8.9% (134 questions) | see reports |
+| unanimous consensus-error candidates | 8.9% (134 questions) | see reports |
 | Fleiss' kappa (raw answers) | 0.495 | see reports |
 | per-question category flips between the two judges | 8.1% (122/1500) | — |
 | text_only set Jaccard between judges | 0.79 | — |
@@ -29,8 +38,9 @@ supersede the old ones everywhere.
 
 `scripts/audit_significance.py` re-derives the headline numbers with
 publication-grade statistics from the same artifacts (no new inference);
-full output: `mmstar_3models_gpt-4o-mini/significance_report.{md,json}`,
-`hallusionbench_3models_auxmatch/significance_report.{md,json}`.
+saved digests: `mmstar_3models_gpt-4o-mini/significance_report.md`,
+`hallusionbench_3models_auxmatch/significance_report.md`. Canonical JSON must be regenerated
+from the original evaluation files; it is not present in this archive.
 
 **Report the permutation-null excess, not the raw text_only share.** The
 raw share is dominated by marginal-rate arithmetic and by the model pool
@@ -75,28 +85,29 @@ Wilson 95% intervals (closed-form, replaces the bootstrap): text_only
 ## Caveats
 
 - 3 models only: leave-one-model-out ranges are wide (per-pool table in
-  `significance_report.md`) — the paper pool is 6 models
-  (see `docs/en/WorkPlan_TAI-Eval.md` Phase 1).
+  `significance_report.md`) — a six-model follow-up
+  was an uncompleted development plan; the published study uses three models.
 - The unanimous consensus-error set (134) is **before** human verification;
-  precision comes from the annotation package below.
+  precision remains unmeasured because the annotation templates are unfilled.
 - Dataset frame was reconstructed from the eval files (no images); detector
   logic does not use images except `question_image_relevance` (not run).
 
 ## Contents
 
 - `mmstar_3models_gpt-4o-mini/` — `benchmark_audit_report.md` (aggregated
-  detector digest) and `significance_report.{md,json}` (permutation-null
+  detector digest) and `significance_report.md` (permutation-null
   excess, strata, judge-free exact arm, threshold sweep — see above). The
   exact-matching arm lives inside the significance report; per-question
   `all_stat.json`/stability exports are regenerated on demand
   (`run.py --mode bench_eval` + `scripts/audit_stability.py`), they are
   not committed (`*json` is git-ignored repo-wide).
-- `hallusionbench_3models_auxmatch/` — `significance_report.{md,json}`
+- `hallusionbench_3models_auxmatch/` — `significance_report.md`
   for HallusionBench (excess + design-label calibration; MCQ-letter
   sections not applicable to the yes/no format).
 - `annotation_mmstar/` — ready 150-item human-verification package
   (50 consensus_error + 50 visual_dependency + 50 distractor_similarity;
   seed 2026). Fill `annotator_A.csv` / `annotator_B.csv` independently, do
-  NOT open `key.json` first; then score with
+  do not inspect answer keys before annotating. The original sampling key is not
+  bundled, so scoring additionally needs that key. Then score with
   `scripts/sample_for_annotation.py score` (protocol:
   `docs/en/AnnotationProtocol.md`).

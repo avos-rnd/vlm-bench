@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+message: "Please cite the paper when using the audit layer or its findings."
+type: software
+title: "vlm-bench: Auditing VLM Benchmarks from Existing Evaluation Runs"
+version: arxiv-v1
+license: Apache-2.0
+repository-code: "https://github.com/avos-rnd/vlm-bench"
+url: "https://arxiv.org/abs/2610.13548"
+authors:
+  - family-names: "Degtiarev"
+    given-names: "Denis"
+  - family-names: "Gromova"
+    given-names: "Anna"
+  - family-names: "Katkov"
+    given-names: "Sergey"
+  - family-names: "Mikhailin"
+    given-names: "Artem"
+  - family-names: "Mukhamedshina"
+    given-names: "Safina"
+  - family-names: "Nasybullin"
+    given-names: "Albert"
+  - family-names: "Shaikhutdinova"
+    given-names: "Karina"
+  - family-names: "Tuzov"
+    given-names: "Artem"
+preferred-citation:
+  type: article
+  title: "Auditing VLM Benchmarks from Existing Evaluation Runs"
+  year: 2026
+  journal: arXiv
+  doi: "10.48550/arXiv.2610.13548"
+  url: "https://arxiv.org/abs/2610.13548"
+  authors:
+    - family-names: "Degtiarev"
+      given-names: "Denis"
+    - family-names: "Gromova"
+      given-names: "Anna"
+    - family-names: "Katkov"
+      given-names: "Sergey"
+    - family-names: "Mikhailin"
+      given-names: "Artem"
+    - family-names: "Mukhamedshina"
+      given-names: "Safina"
+    - family-names: "Nasybullin"
+      given-names: "Albert"
+    - family-names: "Shaikhutdinova"
+      given-names: "Karina"
+    - family-names: "Tuzov"
+      given-names: "Artem"

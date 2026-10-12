@@ -404,6 +404,7 @@ class VisualDependencyDetector(BaseDetector):
                 )
 
         self._findings = findings
+        report["findings"] = findings
 
         return report
 
@@ -430,4 +431,5 @@ class VisualDependencyDetector(BaseDetector):
                 )
             except Exception:
                 logger.exception("Failed to write visual dependency reports")
+                raise
         return res

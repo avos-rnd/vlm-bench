@@ -286,7 +286,8 @@ def run_pipeline(args):
     # attempt to generate benchmark audit (aggregated detector findings)
     try:
         gen = BenchmarkAuditReportGenerator()
-        gen_res = gen.generate(str(Path(args.work_dir)))
+        gen_res = gen.generate(str(Path(args.work_dir)),
+                               detector_names=[name for name, status in detector_outputs.items() if status['executed']])
         logger.info(f'Generated benchmark audit reports: {gen_res}')
         try:
             agg['audit'] = gen_res

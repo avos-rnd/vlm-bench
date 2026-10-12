@@ -65,6 +65,8 @@ base = _load('base_detector')
 class DummyDataset:
     """Minimal dataset stand-in exposing a ``data`` DataFrame."""
 
+    TYPE = "MCQ"
+
     def __init__(self, df):
         self.data = df
 
@@ -135,6 +137,20 @@ class TestMcqExtraction(unittest.TestCase):
         self.assertEqual(answers['m1'], ['B', 'A'])
 
 
+class TestFindingExports(unittest.TestCase):
+
+    def test_merge_preserves_both_sides_without_mutating_inputs(self):
+        finding = {'question_id': 42, 'detector': 'consensus_error'}
+        merged = base.BaseDetector.merge_findings([finding], [finding])
+        self.assertEqual([f['comparison_side'] for f in merged], ['full', 'blind'])
+        self.assertNotIn('comparison_side', finding)
+
+    def test_default_mcq_options(self):
+        ce = _load('consensus_error').ConsensusErrorDetector()
+        self.assertEqual(ce._extract_mcq_option('Answer: B'), 'B')
+        self.assertEqual(ce._extract_mcq_option('unclear'), 'Z')
+
+
 class TestConsensusError(unittest.TestCase):
 
     def _make_context(self, frames, ids):
@@ -156,11 +172,11 @@ class TestConsensusError(unittest.TestCase):
         }
         det = ce.ConsensusErrorDetector()
         report = det.analyze(self._make_context(frames, ids))
-        flagged = report['_flagged']
+        flagged = report['findings']
         self.assertEqual(len(flagged), 1)
         self.assertEqual(flagged[0]['question_id'], 10)
-        self.assertEqual(flagged[0]['confidence'], 'very_high')
-        self.assertEqual(flagged[0]['majority_answer'], 'B')
+        self.assertEqual(flagged[0]['metadata']['confidence'], 'very_high')
+        self.assertEqual(flagged[0]['metadata']['majority_answer'], 'B')
 
     def test_abstentions_do_not_vote(self):
         ce = _load('consensus_error')
@@ -173,10 +189,9 @@ class TestConsensusError(unittest.TestCase):
         }
         det = ce.ConsensusErrorDetector()
         report = det.analyze(self._make_context(frames, ids))
-        self.assertEqual(len(report['_flagged']), 0)
-        skipped = [q for q in report['_all_q'] if q.get('skipped')]
-        self.assertEqual(len(skipped), 1)
-        self.assertEqual(skipped[0]['question_id'], 0)
+        self.assertEqual(report['findings'], [])
+        self.assertEqual(report['num_skipped_questions'], 1)
+        self.assertEqual(report['num_questions'], 2)
 
 
 class TestVisualDependency(unittest.TestCase):

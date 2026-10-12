@@ -1,3 +1,6 @@
+> Historical pre-submission development notes (August 2026). For current publication
+> status, scope, and reproduction, see the root README and `docs/en/ReproducingPaper.md`.
+
 # Передача проекта: что осталось сделать (TAE @ NeurIPS 2026, Sydney)
 
 Дата: 28.08.2026. Все ссылки — относительно корня репозитория.
