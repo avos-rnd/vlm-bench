@@ -1,3 +1,6 @@
+> Historical pre-submission development notes (August 2026). For current publication
+> status, scope, and reproduction, see the root README and `docs/en/ReproducingPaper.md`.
+
 # Runbook: TAI-Eval (NeurIPS 2026, Sydney) submission
 
 **Paper:** "Auditing VLM Benchmarks for Free: Detecting Benchmark Pathologies

@@ -1,60 +1,47 @@
-# Paper: Auditing VLM Benchmarks for Free (TAE @ NeurIPS 2026)
+# Auditing VLM Benchmarks from Existing Evaluation Runs
+
+Denis Degtiarev, Anna Gromova, Sergey Katkov, Artem Mikhailin,
+Safina Mukhamedshina, Albert Nasybullin, Karina Shaikhutdinova, Artem Tuzov — Innopolis University.
+
+[arXiv v1](https://arxiv.org/abs/2610.13548v1) ·
+[OpenReview](https://openreview.net/forum?id=0RTvEQrBET) ·
+[NeurIPS poster](https://neurips.cc/virtual/2026/loc/sydney/178389)
+
+Accepted as a poster at TAE (Trust-AI-Eval): Can We Trust AI Evaluation?,
+NeurIPS 2026 Workshop (non-archival). This directory contains the camera-ready
+manuscript with named authors and final workshop formatting, based on
+`ce06863c4a721a13a9a21d31423f8dadb81e7aa0`.
 
 ## Build
 
-The official (unmodified) `neurips_2026.sty` sits in this directory. TAE
-rules (verified 28.08): 8 pages excl. references/appendices, single PDF,
-`\usepackage[dblblindworkshop]{neurips_2026}` + `\workshoptitle{TAE
-(Trust-AI-Eval): Can We Trust AI Evaluation?}` — already set in
-`main.tex`. Full submission contract, style rules, per-section advice
-and pre-submit checklist: [WRITING_GUIDE.md](WRITING_GUIDE.md).
+With a TeX installation, from this directory:
 
 ```bash
-export PATH="/opt/homebrew/opt/texlive/bin:$PATH"   # brew install texlive
 pdflatex main && bibtex main && pdflatex main && pdflatex main
 ```
 
-Current state (29.08): complete draft, no placeholders. Sections are
-Abstract / Introduction (+ Contributions) / Related work / Methodology
-(incl. the evaluation protocol) / Results / Limitations / Conclusion, then
-References and three appendices. Compiles with 0 errors, 0 undefined
-references, 0 overfull boxes; content ends on page 7 of 8, References start
-on page 8, appendices follow (both are outside the limit). `pdffonts` shows
-Type 1 only; US Letter. The first-page footer intentionally reads
-"Submitted to ... Do not distribute" — the workshop name appears only under
-`[final]`, at camera-ready.
+`neurips_2026.sty` is the official workshop style. `main.pdf` is the committed
+camera-ready rendering. For statistics and figure generation, follow
+[ReproducingPaper.md](../docs/en/ReproducingPaper.md); original prediction files
+must be supplied separately and are not included in this release yet.
 
-## Numbers and figures
+## Figures
 
-Nothing in `main.tex` is typed by hand. Every number comes from
-`scripts/audit_significance.py` and every figure from
-`scripts/audit_paper_figures.py`, which imports its detector logic from the
-former so the two cannot drift apart. Regenerate both with the commands in
-Appendix A of the paper. Figures are post-processed by ghostscript
-(`-dNoOutputFonts`, invoked inside the figure script) to convert text to
-outlines — matplotlib otherwise embeds CID TrueType subsets, and NeurIPS
-allows only Type 1 or embedded TrueType.
+| File | Content |
+|---|---|
+| `figures/fig_pipeline.pdf` | Saved evaluation artifacts, six detectors, and per-question reports. |
+| `figures/fig_visual_dependency.pdf` | Visual gain, permutation null, and composition of zero-gain items. |
+| `figures/fig_strata.pdf` | Category profiles of zero-gain excess and label-conflict candidates. |
+| `figures/fig_robustness.pdf` | LLM judge vs exact matching and the source of scoring discrepancies. |
+| `figures/fig_binary_format.pdf` | HallusionBench calibration diagnostic. |
 
-Figures in the paper:
-
-| File | Where | Shows |
-|---|---|---|
-| `fig_visual_dependency.pdf` | §4.1 | scatter, permutation null, composition of the no-gain set |
-| `fig_strata.pdf` | §4.2 | text-only excess vs label-error candidates per category |
-| `fig_robustness.pdf` | §4.4 | judge vs exact matching, and the single model behind every flip |
-| `fig_binary_format.pdf` | App. C | HallusionBench ROC at chance + the surviving signal |
+`scripts/audit_significance.py` generates the canonical statistical report;
+`scripts/audit_paper_figures.py` uses that report for stochastic/aggregate values.
+The pipeline diagram is authored separately. The README's visual abstract is
+`assets/visual-abstract.svg` at the repository root.
 
 ## Human verification
 
-The paper deliberately makes **no** claim about detector precision: the
-annotation package in `audit_preliminary/annotation_mmstar/` contains only
-empty templates, so §4.3 reports the 134 unanimous conflicts as *candidates*
-and Limitation (ii) states that their precision is unmeasured. If the
-annotation is completed later, add the precision numbers to §4.3 and adjust
-that limitation — do not weaken the candidate framing anywhere else.
-
-## Anonymization
-
-Do not include repository URLs, author names, or the internal planning docs
-(`NeurIPS2026_Workshop_Readiness.md`, `WorkPlan_TAI-Eval.md`,
-`docs/ru/HANDOFF.md`, `paper/WRITING_GUIDE.md`) in the submitted artifact.
+The 134 unanimous conflicts are **candidates**. The annotation templates are unfilled,
+and detector precision has not been measured. Preserve that distinction in derivative
+reports, descriptions, and figures.

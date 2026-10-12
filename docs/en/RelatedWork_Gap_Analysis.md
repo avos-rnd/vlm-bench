@@ -1,3 +1,6 @@
+> Historical pre-submission development notes (August 2026). For current publication
+> status, scope, and reproduction, see the root README and `docs/en/ReproducingPaper.md`.
+
 # Related Work & Research-Gap Analysis
 **Paper under audit:** "Benchmark-audit layer for VLMEvalKit: 6 cheap post-processing detectors of benchmark pathologies" (target: NeurIPS 2026 TAI-Eval workshop, Sydney)
 **Analysis date:** 2026-08-28

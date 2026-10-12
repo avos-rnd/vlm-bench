@@ -1,3 +1,6 @@
+> Historical pre-submission development notes (August 2026). For current publication
+> status, scope, and reproduction, see the root README and `docs/en/ReproducingPaper.md`.
+
 # NeurIPS 2026 Workshop Readiness Plan
 
 > **STATUS UPDATE (2026-08-28).** This document is kept for history; the
