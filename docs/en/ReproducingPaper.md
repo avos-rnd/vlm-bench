@@ -1,9 +1,13 @@
 # Reproducing the arXiv v1 results
 
 Paper: [Auditing VLM Benchmarks from Existing Evaluation Runs](https://arxiv.org/abs/2610.13548).
-The `arxiv-v1` release combines the camera-ready manuscript with the corrected audit
-exports and CPU-only tests. Its manuscript source is based on camera-ready commit
+The `arxiv-v1.1` repository release bundles the full/blind prediction files with the
+camera-ready manuscript, corrected audit exports, and CPU-only tests. Its manuscript
+source is based on camera-ready commit
 `ce06863c4a721a13a9a21d31423f8dadb81e7aa0`.
+
+The earlier `arxiv-v1` tag remains unchanged and does not contain the prediction files.
+This repository release reproduces the same arXiv v1 paper; it is not a new manuscript version.
 
 ## What is available
 
@@ -12,14 +16,14 @@ exports and CPU-only tests. Its manuscript source is based on camera-ready commi
 - Saved [MMStar significance report](../../audit_preliminary/mmstar_3models_gpt-4o-mini/significance_report.md),
   [HallusionBench significance report](../../audit_preliminary/hallusionbench_3models_auxmatch/significance_report.md),
   and an [archived item-finding digest](../../audit_preliminary/mmstar_3models_gpt-4o-mini/benchmark_audit_report.md).
+- Original full/blind prediction files for MMStar and HallusionBench, stored under
+  `paper-inputs/`; their SHA-256 hashes are recorded by the reproduction driver.
 - Unfilled annotation templates; these are not evidence of completed human verification.
 
-**The original full/blind prediction files are not included yet.** An old development
-note refers to a `results` branch that is not available in this repository. Aggregate
-reports cannot recover item-level predictions. This release therefore supplies a
-reproduction procedure with explicit required inputs, not a claim that a clean clone
-can already reproduce every number. It also does not include original run manifests
-or verified checksums for the unavailable files.
+**The original full/blind prediction files are included in `paper-inputs/`.** The
+included files contain the item-level predictions, annotations, and correctness values
+required by the reproduction driver. Original run manifests are not included;
+the driver records SHA-256 checksums for the files supplied to it.
 
 The source runs are documented as eval ID `T20260611-093811`, with InternVL3-8B,
 Ristretto-3B, and `gpt-5-nano-2025-08-07`. MMStar correctness uses `gpt-4o-mini`;
@@ -34,21 +38,21 @@ inference environment is not reconstructed by them.
 ```bash
 git clone https://github.com/avos-rnd/vlm-bench.git
 cd vlm-bench
-git checkout arxiv-v1
+git checkout arxiv-v1.1
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements/audit.txt
 python -m pytest tests/test_detectors.py tests/test_bench_eval_pipeline.py tests/test_audit_reporting.py tests/test_paper_reproduction.py -q
 ```
 
-## 2. Supply the original evaluation files
+## 2. Check the included evaluation files
 
-Copy the six files for each benchmark into the layout below. Renaming copies is fine;
-retain every row, prediction, annotation, and correctness value. The driver records
-SHA-256 hashes of the files supplied to it.
+The repository includes six files for each benchmark in the layout below. Retain every
+row, prediction, annotation, and correctness value if the files are replaced. The
+driver records SHA-256 hashes of the files supplied to it.
 
 ```text
-/path/to/paper-inputs/
+paper-inputs/
   MMStar/
     InternVL3-8B_full.xlsx
     InternVL3-8B_blind.xlsx
@@ -71,7 +75,7 @@ The driver refuses missing or misaligned inputs instead of silently comparing ro
 
 ```bash
 python scripts/reproduce_paper.py \
-  --input-dir /path/to/paper-inputs \
+  --input-dir paper-inputs \
   --out outputs/paper-reproduction
 ```
 
@@ -84,6 +88,8 @@ It writes each benchmark's `significance_report.json` and Markdown digest, plus
 `reproduction_manifest.json` with input hashes, commit, Python/package versions,
 commands, and expected/actual headline checks. Mismatches produce a nonzero exit status.
 Matching these headlines alone does not establish that two input archives are identical.
+CI runs the driver on both bundled benchmarks with `--figures`; missing inputs,
+invalid alignment, headline mismatches, and figure-generation failures fail the job.
 
 | Quantity | MMStar | HallusionBench diagnostic |
 |---|---:|---:|
@@ -103,7 +109,7 @@ checks; compare these sections with the saved Markdown report and manuscript.
 
 ```bash
 python scripts/reproduce_paper.py \
-  --input-dir /path/to/paper-inputs \
+  --input-dir paper-inputs \
   --out outputs/paper-reproduction --figures
 ```
 

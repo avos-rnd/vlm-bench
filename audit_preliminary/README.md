@@ -2,17 +2,17 @@
 
 These are saved development reports for the published [arXiv paper](https://arxiv.org/abs/2610.13548).
 For the current release procedure, use [ReproducingPaper.md](../docs/en/ReproducingPaper.md).
-The original prediction files and the old `results` branch are not bundled in this
-repository yet. The item-finding digest predates the release export fixes; its counts
-are retained as an archival example, not as a freshly rerun release result.
+The original prediction files are included in this repository under `paper-inputs/`.
+The item-finding digest predates the release export fixes; its counts are retained as
+an archival example, not as a freshly rerun release result.
 
 `text_only` is a historical category name for equal pool-averaged full/blind accuracy,
 including all-wrong items. Consensus conflicts remain unverified review candidates.
 
 Produced with the **fixed** audit pipeline (current working tree: index-based
 alignment, judge-free extraction, no ground-truth back-fill, 'Z' abstentions
-excluded) applied to the existing prediction artifacts from the
-historical `origin/results` branch (currently unavailable) (MMStar, 3 models: InternVL3-8B, Ristretto-3B,
+excluded) applied to the prediction artifacts preserved under `paper-inputs/`
+(MMStar, 3 models: InternVL3-8B, Ristretto-3B,
 gpt-5-nano-2025-08-07; eval id `T20260611-093811`; judge `gpt-4o-mini`).
 
 ## Headline numbers (3-model pool — preliminary, see caveats)

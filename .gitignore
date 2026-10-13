@@ -179,6 +179,8 @@ GPT4o_MINI/
 
 2weiyun*
 script.py
+InternVL*
+!paper-inputs/**/InternVL*.xlsx
 Gemini*
 Claude3-5V*
 GLM4V*
@@ -204,7 +206,6 @@ vlmeval/gemini_tmp.py
 run.sh
 run_g.sh
 tmp/
-InternVL*
 Qwen*
 CongRong*
 Seed1.5*

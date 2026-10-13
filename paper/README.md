@@ -23,7 +23,7 @@ pdflatex main && bibtex main && pdflatex main && pdflatex main
 `neurips_2026.sty` is the official workshop style. `main.pdf` is the committed
 camera-ready rendering. For statistics and figure generation, follow
 [ReproducingPaper.md](../docs/en/ReproducingPaper.md); original prediction files
-must be supplied separately and are not included in this release yet.
+are included under `../paper-inputs/`.
 
 ## Figures
 

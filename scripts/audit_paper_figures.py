@@ -63,6 +63,9 @@ RED = '#B4503C'       # pathology
 GREEN = '#4E7A5A'     # benign
 GRID = '#DCDCDC'
 
+# Compact plot labels; full model IDs remain in the statistics and manifest.
+MODEL_LABELS = {'gpt-5-nano-2025-08-07': 'gpt-5-nano'}
+
 plt.rcParams.update({
     'pdf.fonttype': 42, 'ps.fonttype': 42,
     'font.family': 'serif',
@@ -356,7 +359,7 @@ def fig_robustness(d, out):
         ax.text(x, v + top * .04, str(v), ha='center', fontsize=6.8,
                 fontweight='bold')
     ax.set_xticks(range(len(vals)))
-    ax.set_xticklabels([f'{m}\n{u:.0f}% unparsed' for m, _, u in attrib],
+    ax.set_xticklabels([f'{MODEL_LABELS.get(m, m)}\n{u:.0f}% unparsed' for m, _, u in attrib],
                        fontsize=6.0, linespacing=1.25)
     ax.tick_params(axis='x', length=0)
     ax.set_ylabel('items scored differently')

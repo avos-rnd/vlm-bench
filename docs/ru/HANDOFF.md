@@ -42,7 +42,7 @@ double-blind).
 3. **Манускрипт**: [paper/main.tex](../../paper/main.tex) — полный каркас,
    компилируется (0 ошибок), все недостающие числа помечены красным `\ph{...}`.
 4. **Предварительные числа уже посчитаны** исправленным кодом на артефактах
-   3 моделей из ветки `origin/results`: см.
+  3 моделей, сохранённых в `paper-inputs/`: см.
    [audit_preliminary/README.md](../../audit_preliminary/README.md).
    Ключевое: text_only **20.2%** (CI [18.2, 22.2]), consensus-error **23.9%**
    (unanimous **134** вопроса = 8.9%; в старом коде было 12 — подмена GT
@@ -113,7 +113,7 @@ sensitivity»; 6-модельный пул уходит в camera-ready/поster
       - Fig scatter: `paper/figures/fig_scatter_mmstar.pdf` уже сгенерирован —
         замени `\fbox`-заглушку на `\includegraphics`.
 - [ ] **(если успеваешь, +1–2 ч)** HallusionBench тем же способом: xlsx лежат в
-      `origin/results:outputs/reports_hallusion/`; повтори локальный прогон
+  `paper-inputs/HallusionBench/`; повтори локальный прогон
       (см. «Как я считал preliminary» ниже).
 
 ### День 2 (29.08)
@@ -175,9 +175,8 @@ python scripts/audit_paper_assets.py --run MMStar=outputs --judge-run gpt=output
 
 ## Как считались preliminary-числа (для воспроизведения)
 
-Артефакты 3 моделей взяты из `origin/results` (eval id `T20260611-093811`),
-разложены в стандартную структуру `outputs/<model>/<eval_id>/` и прогнаны
-текущим кодом. На машине без полного окружения (нет decord и т.п.) это
+Артефакты 3 моделей (eval id `T20260611-093811`) сохранены в `paper-inputs/`
+и прогнаны текущим кодом. На машине без полного окружения (нет decord и т.п.) это
 делается через тестовый харнесс: см.
 `tests/test_bench_eval_pipeline.py::load_pipeline` — он подставляет лёгкие
 стабы вместо тяжёлых импортов, но исполняет **настоящий** пайплайн

@@ -1,7 +1,8 @@
 """Validate supplied eval files, reproduce paper statistics, and check published headlines.
 
-This driver never performs model inference. The original prediction files must be
-provided separately; it does not reconstruct them from aggregate Markdown reports.
+This driver never performs model inference. It reads the original prediction files
+from the directory supplied with ``--input-dir``; it does not reconstruct them from
+aggregate Markdown reports.
 """
 import argparse
 import hashlib
@@ -25,7 +26,8 @@ def validate_inputs(input_dir, benchmark):
     missing = [str(path) for path in files if not path.is_file()]
     if missing:
         raise ValueError('Missing original evaluation files:\n' + '\n'.join(missing)
-                         + '\nSee docs/en/ReproducingPaper.md. Raw predictions are not bundled in arxiv-v1.')
+                         + '\nSee docs/en/ReproducingPaper.md. Raw predictions are expected under paper-inputs/ '
+                         '(or the directory supplied with --input-dir).')
     reference = None
     records = []
     for path in files:
@@ -79,7 +81,7 @@ def main():
         parser.exit(2, f'{error}\n')
     args.out.mkdir(parents=True, exist_ok=True)
     commit = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], capture_output=True, text=True)
-    manifest = {'release': 'arxiv-v1', 'paper': 'https://arxiv.org/abs/2610.13548',
+    manifest = {'release': 'arxiv-v1.1', 'paper': 'https://arxiv.org/abs/2610.13548',
                 'git_commit': commit.stdout.strip() if commit.returncode == 0 else None,
                 'python': platform.python_version(), 'seed': 7, 'permutations': 999,
                 'packages': {name: importlib.metadata.version(name) for name in ('numpy', 'pandas', 'openpyxl', 'matplotlib')},

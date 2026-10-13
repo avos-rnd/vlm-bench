@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "Please cite the paper when using the audit layer or its findings."
 type: software
 title: "vlm-bench: Auditing VLM Benchmarks from Existing Evaluation Runs"
-version: arxiv-v1
+version: arxiv-v1.1
 license: Apache-2.0
 repository-code: "https://github.com/avos-rnd/vlm-bench"
 url: "https://arxiv.org/abs/2610.13548"
