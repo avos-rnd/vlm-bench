@@ -25,9 +25,9 @@ def validate_inputs(input_dir, benchmark):
              for side in ('full', 'blind') for model in MODELS]
     missing = [str(path) for path in files if not path.is_file()]
     if missing:
-                raise ValueError('Missing original evaluation files:\n' + '\n'.join(missing)
-                                                 + '\nSee docs/en/ReproducingPaper.md. Raw predictions are expected under paper-inputs/ '
-                                                     '(or the directory supplied with --input-dir).')
+        raise ValueError('Missing original evaluation files:\n' + '\n'.join(missing)
+                         + '\nSee docs/en/ReproducingPaper.md. Raw predictions are expected under paper-inputs/ '
+                         '(or the directory supplied with --input-dir).')
     reference = None
     records = []
     for path in files:
@@ -81,7 +81,7 @@ def main():
         parser.exit(2, f'{error}\n')
     args.out.mkdir(parents=True, exist_ok=True)
     commit = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], capture_output=True, text=True)
-    manifest = {'release': 'arxiv-v1', 'paper': 'https://arxiv.org/abs/2610.13548',
+    manifest = {'release': 'arxiv-v1.1', 'paper': 'https://arxiv.org/abs/2610.13548',
                 'git_commit': commit.stdout.strip() if commit.returncode == 0 else None,
                 'python': platform.python_version(), 'seed': 7, 'permutations': 999,
                 'packages': {name: importlib.metadata.version(name) for name in ('numpy', 'pandas', 'openpyxl', 'matplotlib')},

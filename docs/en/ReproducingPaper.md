@@ -1,9 +1,13 @@
 # Reproducing the arXiv v1 results
 
 Paper: [Auditing VLM Benchmarks from Existing Evaluation Runs](https://arxiv.org/abs/2610.13548).
-The `arxiv-v1` release combines the camera-ready manuscript with the corrected audit
-exports and CPU-only tests. Its manuscript source is based on camera-ready commit
+The `arxiv-v1.1` repository release bundles the full/blind prediction files with the
+camera-ready manuscript, corrected audit exports, and CPU-only tests. Its manuscript
+source is based on camera-ready commit
 `ce06863c4a721a13a9a21d31423f8dadb81e7aa0`.
+
+The earlier `arxiv-v1` tag remains unchanged and does not contain the prediction files.
+This repository release reproduces the same arXiv v1 paper; it is not a new manuscript version.
 
 ## What is available
 
@@ -34,7 +38,7 @@ inference environment is not reconstructed by them.
 ```bash
 git clone https://github.com/avos-rnd/vlm-bench.git
 cd vlm-bench
-git checkout arxiv-v1
+git checkout arxiv-v1.1
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements/audit.txt
@@ -84,6 +88,8 @@ It writes each benchmark's `significance_report.json` and Markdown digest, plus
 `reproduction_manifest.json` with input hashes, commit, Python/package versions,
 commands, and expected/actual headline checks. Mismatches produce a nonzero exit status.
 Matching these headlines alone does not establish that two input archives are identical.
+CI runs the driver on both bundled benchmarks with `--figures`; missing inputs,
+invalid alignment, headline mismatches, and figure-generation failures fail the job.
 
 | Quantity | MMStar | HallusionBench diagnostic |
 |---|---:|---:|

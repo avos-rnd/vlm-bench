@@ -179,6 +179,8 @@ GPT4o_MINI/
 
 2weiyun*
 script.py
+InternVL*
+!paper-inputs/**/InternVL*.xlsx
 Gemini*
 Claude3-5V*
 GLM4V*

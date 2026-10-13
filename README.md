@@ -76,7 +76,7 @@ See the [toolkit setup guide](docs/en/Quickstart.md).
 ```bash
 git clone https://github.com/avos-rnd/vlm-bench.git
 cd vlm-bench
-git checkout arxiv-v1
+git checkout arxiv-v1.1
 python -m pip install -e .
 ```
 
@@ -136,13 +136,14 @@ model stack. With **Python 3.11**:
 ```bash
 python -m pip install -r requirements/audit.txt
 python -m pytest tests/test_detectors.py tests/test_bench_eval_pipeline.py tests/test_audit_reporting.py tests/test_paper_reproduction.py -q
-python scripts/reproduce_paper.py --help
+python scripts/reproduce_paper.py --input-dir paper-inputs --out outputs/paper-reproduction --figures
 ```
 
 [ReproducingPaper.md](docs/en/ReproducingPaper.md) specifies artifact layout,
 checksums, exact commands, and expected headline results. `scripts/reproduce_paper.py`
 computes the statistics from supplied evaluation files and checks them against the
-published values; add `--figures` to regenerate the statistical figures.
+published values. The `--figures` flag also regenerates the statistical figures.
+CI runs this same command on both benchmarks, including all four statistical figures.
 
 ## Repository map
 

@@ -27,5 +27,7 @@ jobs:
         run: python -m pip install -r requirements/audit.txt
       - name: Test detectors, exports, and aggregation
         run: python -m pytest tests/test_detectors.py tests/test_bench_eval_pipeline.py tests/test_audit_reporting.py tests/test_paper_reproduction.py -q
-      - name: Check paper reproduction CLI
-        run: python scripts/reproduce_paper.py --help
+      - name: Reproduce both paper benchmarks and statistical figures
+        run: >-
+          python scripts/reproduce_paper.py --input-dir paper-inputs
+          --out outputs/paper-reproduction --figures
